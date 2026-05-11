@@ -17,7 +17,7 @@ interface InstanceData {
   summary: {
     queries: { total: number; blocked: number; percent_blocked: number }
   } | null
-  blocking: { blocking: 'enabled' | 'disabled' | 'unknown' } | null
+  blocking: { blocking: boolean } | null
 }
 
 export default function InstanceCard({ instance, onUpdate }: {
@@ -28,7 +28,7 @@ export default function InstanceCard({ instance, onUpdate }: {
   const [updatingGravity, setUpdatingGravity] = useState(false)
 
   const isOnline = instance.status === 'online'
-  const blockingEnabled = instance.blocking?.blocking === 'enabled'
+  const blockingEnabled = instance.blocking?.blocking === true
 
   async function toggleBlocking(enabled: boolean) {
     setTogglingBlocking(true)

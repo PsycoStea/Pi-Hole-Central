@@ -3,6 +3,7 @@ import { db } from '@/lib/db'
 import { instances, statsSnapshots } from '@/lib/db/schema'
 import { eq, lt } from 'drizzle-orm'
 import * as piholeClient from '@/lib/pihole/client'
+import type { TopDomain, TopClient } from '@/lib/pihole/types'
 import { checkAlerts } from './alerts'
 
 let isRunning = false
@@ -17,11 +18,18 @@ export async function pollAllInstances() {
 
     for (const instance of activeInstances) {
       try {
-        const [summary, topDomains, topClients] = await Promise.all([
-          piholeClient.getSummary(instance.id),
-          piholeClient.getTopDomains(instance.id, 10),
-          piholeClient.getTopClients(instance.id, 10),
-        ])
+        const summary = await piholeClient.getSummary(instance.id)
+
+        let topDomains: TopDomain[] = []
+        let topClients: TopClient[] = []
+        try {
+          ;[topDomains, topClients] = await Promise.all([
+            piholeClient.getTopDomains(instance.id, 10),
+            piholeClient.getTopClients(instance.id, 10),
+          ])
+        } catch (err) {
+          console.error(`[poller] Top data unavailable for ${instance.name}:`, err)
+        }
 
         await db.insert(statsSnapshots).values({
           instanceId: instance.id,

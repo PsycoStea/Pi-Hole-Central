@@ -15,7 +15,7 @@ export interface PiHoleSummary {
     domains_being_blocked: number
     last_updated: { absolute: number }
   }
-  blocking: 'enabled' | 'disabled' | 'unknown'
+  blocking: boolean
 }
 
 export interface TopDomain {
@@ -41,6 +41,6 @@ export interface PiHoleInstanceConfig {
 }
 
 export interface BlockingStatus {
-  blocking: 'enabled' | 'disabled' | 'unknown'
+  blocking: boolean
   timer: number | null
 }

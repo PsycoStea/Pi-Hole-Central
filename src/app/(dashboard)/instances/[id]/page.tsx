@@ -26,7 +26,7 @@ interface InstanceData {
   url: string
   status: 'online' | 'offline'
   summary: Summary | null
-  blocking: { blocking: 'enabled' | 'disabled' | 'unknown' } | null
+  blocking: { blocking: boolean } | null
 }
 
 interface TopDomain { domain: string; count: number }
@@ -47,30 +47,24 @@ export default function InstanceDetailPage({
   const [updatingGravity, setUpdatingGravity] = useState(false)
 
   const fetchData = useCallback(async () => {
-    const [summaryRes, historyRes] = await Promise.allSettled([
+    const [summaryRes, historyRes, topRes] = await Promise.allSettled([
       fetch('/api/stats/summary'),
       fetch(`/api/stats/history?instanceId=${id}&hours=${hours}`),
+      fetch(`/api/pihole/${id}/top`),
     ])
 
     if (summaryRes.status === 'fulfilled' && summaryRes.value.ok) {
       const data = await summaryRes.value.json()
       const inst = data.instances?.find((i: InstanceData) => i.id === id)
-      if (inst) {
-        setInstance(inst)
-        // Parse top domains/clients from latest snapshot
-        const snapshotRes = await fetch(`/api/stats/history?instanceId=${id}&hours=1`)
-        if (snapshotRes.ok) {
-          const snapshots = await snapshotRes.json()
-          const latest = snapshots[snapshots.length - 1]
-          if (latest) {
-            setTopDomains(JSON.parse(latest.topDomainsJson ?? '[]'))
-            setTopClients(JSON.parse(latest.topClientsJson ?? '[]'))
-          }
-        }
-      }
+      if (inst) setInstance(inst)
     }
     if (historyRes.status === 'fulfilled' && historyRes.value.ok) {
       setHistory(await historyRes.value.json())
+    }
+    if (topRes.status === 'fulfilled' && topRes.value.ok) {
+      const { topDomains, topClients } = await topRes.value.json()
+      setTopDomains(topDomains ?? [])
+      setTopClients(topClients ?? [])
     }
   }, [id, hours])
 
@@ -106,7 +100,7 @@ export default function InstanceDetailPage({
   }
 
   const isOnline = instance?.status === 'online'
-  const blockingEnabled = instance?.blocking?.blocking === 'enabled'
+  const blockingEnabled = instance?.blocking?.blocking === true
 
   return (
     <div className="space-y-6">

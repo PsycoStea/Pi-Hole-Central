@@ -62,7 +62,7 @@ export async function checkAlerts(
       case 'blocking_disabled':
         if (
           currentStatus === 'online' &&
-          summary?.blocking !== 'enabled' &&
+          summary?.blocking !== true &&
           shouldAlert(key)
         ) {
           await dispatch(

@@ -113,7 +113,7 @@ export async function setBlocking(
 ): Promise<BlockingStatus> {
   return apiFetch<BlockingStatus>(instanceId, '/dns/blocking', {
     method: 'POST',
-    body: JSON.stringify({ blocking: enabled ? 'enabled' : 'disabled', timer: timer ?? null }),
+    body: JSON.stringify({ blocking: enabled, timer: timer ?? null }),
   })
 }
 
