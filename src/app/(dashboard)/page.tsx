@@ -14,7 +14,7 @@ interface InstanceData {
   summary: {
     queries: { total: number; blocked: number; percent_blocked: number }
   } | null
-  blocking: { blocking: boolean } | null
+  blocking: { blocking: 'enabled' | 'disabled' | 'unknown' } | null
 }
 
 interface SummaryData {

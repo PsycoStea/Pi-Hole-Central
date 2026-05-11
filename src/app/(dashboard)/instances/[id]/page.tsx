@@ -26,7 +26,7 @@ interface InstanceData {
   url: string
   status: 'online' | 'offline'
   summary: Summary | null
-  blocking: { blocking: boolean } | null
+  blocking: { blocking: 'enabled' | 'disabled' | 'unknown' } | null
 }
 
 interface TopDomain { domain: string; count: number }
@@ -100,7 +100,7 @@ export default function InstanceDetailPage({
   }
 
   const isOnline = instance?.status === 'online'
-  const blockingEnabled = instance?.blocking?.blocking === true
+  const blockingEnabled = instance?.blocking?.blocking === 'enabled'
 
   return (
     <div className="space-y-6">
