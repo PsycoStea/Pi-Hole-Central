@@ -97,7 +97,7 @@ async function apiFetch<T>(
 
 export async function testConnection(url: string, password: string): Promise<PiHoleSummary> {
   const cleanUrl = url.replace(/\/$/, '')
-  const sid = await authenticate(cleanUrl, password)
+  const { sid } = await authenticate(cleanUrl, password)
   const res = await fetch(`${cleanUrl}/api/stats/summary`, {
     headers: { 'X-FTL-SID': sid },
     signal: AbortSignal.timeout(10_000),
