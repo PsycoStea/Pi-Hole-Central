@@ -4,8 +4,10 @@ import bcrypt from 'bcryptjs'
 import { db } from '@/lib/db'
 import { users } from '@/lib/db/schema'
 import { eq } from 'drizzle-orm'
+import { authConfig } from '../../auth.config'
 
 export const { handlers, auth, signIn, signOut } = NextAuth({
+  ...authConfig,
   providers: [
     Credentials({
       credentials: {
@@ -23,9 +25,8 @@ export const { handlers, auth, signIn, signOut } = NextAuth({
       },
     }),
   ],
-  pages: { signIn: '/login' },
-  session: { strategy: 'jwt' },
   callbacks: {
+    ...authConfig.callbacks,
     jwt({ token, user }) {
       if (user) token.id = user.id
       return token
