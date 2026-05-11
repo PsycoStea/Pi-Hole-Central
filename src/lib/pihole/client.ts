@@ -12,6 +12,8 @@ import { decrypt } from '@/lib/crypto'
 
 // In-memory session cache
 const sessions = new Map<string, PiHoleSession>()
+// Deduplicates concurrent auth requests for the same instance
+const pendingAuth = new Map<string, Promise<{ sid: string; expiresAt: number }>>()
 
 async function getInstanceConfig(instanceId: string) {
   const instance = await db.query.instances.findFirst({
@@ -25,7 +27,7 @@ async function getInstanceConfig(instanceId: string) {
   }
 }
 
-async function authenticate(url: string, password: string): Promise<string> {
+async function authenticate(url: string, password: string): Promise<{ sid: string; expiresAt: number }> {
   const res = await fetch(`${url}/api/auth`, {
     method: 'POST',
     headers: { 'Content-Type': 'application/json' },
@@ -34,7 +36,11 @@ async function authenticate(url: string, password: string): Promise<string> {
   })
   if (!res.ok) throw new Error(`Auth failed: ${res.status}`)
   const data = await res.json()
-  return data.session?.sid ?? data.sid
+  const sid = data.session?.sid ?? data.sid
+  // Use Pi-Hole's reported validity minus a 50s safety margin; fall back to 1750s
+  const validity: number = data.session?.validity ?? 1800
+  const expiresAt = Date.now() + (validity - 50) * 1000
+  return { sid, expiresAt }
 }
 
 async function getSid(instanceId: string): Promise<{ url: string; sid: string }> {
@@ -43,8 +49,25 @@ async function getSid(instanceId: string): Promise<{ url: string; sid: string }>
   if (cached && cached.expiresAt > Date.now() + 30_000) {
     return { url: config.url, sid: cached.sid }
   }
-  const sid = await authenticate(config.url, config.password)
-  sessions.set(instanceId, { sid, expiresAt: Date.now() + 270_000 })
+
+  // Deduplicate: if an auth request is already in-flight for this instance, wait for it
+  let pending = pendingAuth.get(instanceId)
+  if (!pending) {
+    pending = authenticate(config.url, config.password).then(
+      (result) => {
+        sessions.set(instanceId, result)
+        pendingAuth.delete(instanceId)
+        return result
+      },
+      (err) => {
+        pendingAuth.delete(instanceId)
+        throw err
+      }
+    )
+    pendingAuth.set(instanceId, pending)
+  }
+
+  const { sid } = await pending
   return { url: config.url, sid }
 }
 
@@ -88,17 +111,17 @@ export async function getSummary(instanceId: string): Promise<PiHoleSummary> {
 }
 
 export async function getTopDomains(instanceId: string, count = 10): Promise<TopDomain[]> {
-  const data = await apiFetch<{ blocked: Array<{ domain: string; count: number }> }>(
+  const data = await apiFetch<{ domains: Array<{ domain: string; count: number }> }>(
     instanceId,
-    `/stats/database/top_blocked?count=${count}`
+    `/stats/top_domains?count=${count}`
   )
-  return data.blocked ?? []
+  return data.domains ?? []
 }
 
 export async function getTopClients(instanceId: string, count = 10): Promise<TopClient[]> {
   const data = await apiFetch<{
     clients: Array<{ ip: string; name: string; count: number }>
-  }>(instanceId, `/stats/database/top_clients?count=${count}`)
+  }>(instanceId, `/stats/top_clients?count=${count}`)
   return data.clients ?? []
 }
 
