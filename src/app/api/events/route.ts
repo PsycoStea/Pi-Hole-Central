@@ -29,14 +29,17 @@ export async function GET(req: Request) {
           })
           const results = await Promise.allSettled(
             activeInstances.map(async (inst) => {
-              const summary = await piholeClient.getSummary(inst.id)
-              return { id: inst.id, name: inst.name, status: 'online', summary }
+              const [summary, blocking] = await Promise.all([
+                piholeClient.getSummary(inst.id),
+                piholeClient.getBlockingStatus(inst.id),
+              ])
+              return { id: inst.id, name: inst.name, status: 'online', summary, blocking }
             })
           )
           const instanceData = results.map((r, i) =>
             r.status === 'fulfilled'
               ? r.value
-              : { id: activeInstances[i].id, name: activeInstances[i].name, status: 'offline', summary: null }
+              : { id: activeInstances[i].id, name: activeInstances[i].name, status: 'offline', summary: null, blocking: null }
           )
           const online = instanceData.filter((i) => i.status === 'online' && i.summary)
           send({
