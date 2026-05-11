@@ -1,0 +1,13 @@
+services:
+  pihole-central:
+    build: .
+    restart: unless-stopped
+    ports:
+      - "3100:3000"
+    volumes:
+      - ./data:/app/data
+    environment:
+      DATABASE_URL: file:/app/data/pihole-central.db
+      NEXTAUTH_SECRET: ${NEXTAUTH_SECRET}
+      NEXTAUTH_URL: ${NEXTAUTH_URL:-http://localhost:3100}
+      ENCRYPTION_KEY: ${ENCRYPTION_KEY}
