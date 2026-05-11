@@ -46,3 +46,8 @@ export const alertSettings = sqliteTable('alert_settings', {
   threshold: real('threshold'),
   channelIdsJson: text('channel_ids_json').notNull().default('[]'),
 })
+
+export const appSettings = sqliteTable('app_settings', {
+  key: text('key').primaryKey(),
+  value: text('value').notNull(),
+})

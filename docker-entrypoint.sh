@@ -50,6 +50,13 @@ for (const type of types) {
   }
 }
 console.log('Default alert settings ready')
+
+// Seed default app settings
+const retExists = sqlite.prepare(\"SELECT key FROM app_settings WHERE key = 'retention_days'\").get()
+if (!retExists) {
+  sqlite.prepare(\"INSERT INTO app_settings (key, value) VALUES ('retention_days', '30')\").run()
+}
+console.log('App settings ready')
 "
 
 exec node server.js

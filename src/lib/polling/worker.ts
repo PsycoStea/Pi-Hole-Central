@@ -1,6 +1,6 @@
 import cron from 'node-cron'
 import { db } from '@/lib/db'
-import { instances, statsSnapshots } from '@/lib/db/schema'
+import { instances, statsSnapshots, appSettings } from '@/lib/db/schema'
 import { eq, lt } from 'drizzle-orm'
 import * as piholeClient from '@/lib/pihole/client'
 import type { TopDomain, TopClient } from '@/lib/pihole/types'
@@ -61,8 +61,12 @@ export async function pollAllInstances() {
       }
     }
 
-    // Prune snapshots older than 30 days
-    const cutoff = new Date(Date.now() - 30 * 24 * 60 * 60 * 1000)
+    // Prune snapshots based on configurable retention setting
+    const retSetting = await db.query.appSettings.findFirst({
+      where: eq(appSettings.key, 'retention_days'),
+    })
+    const retentionDays = parseInt(retSetting?.value ?? '30', 10)
+    const cutoff = new Date(Date.now() - retentionDays * 24 * 60 * 60 * 1000)
     await db.delete(statsSnapshots).where(lt(statsSnapshots.timestamp, cutoff))
   } finally {
     isRunning = false

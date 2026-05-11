@@ -3,7 +3,9 @@
 import { useEffect, useState, useCallback } from 'react'
 import StatCard from '@/components/dashboard/StatCard'
 import InstanceCard from '@/components/dashboard/InstanceCard'
-import BlockRateChart from '@/components/dashboard/BlockRateChart'
+import BlocksHistoryChart from '@/components/dashboard/BlocksHistoryChart'
+import TopDomainsTable from '@/components/instance/TopDomainsTable'
+import TopClientsTable from '@/components/instance/TopClientsTable'
 import { Activity, Shield, ShieldOff, Server } from 'lucide-react'
 
 interface InstanceData {
@@ -28,16 +30,20 @@ interface SummaryData {
   }
 }
 
-interface HistoryRow {
-  instanceId: string
-  timestamp: string
-  blockPct: number
-  status: string
+interface BlockPoint {
+  timestamp: number
+  blocked: number
+  total: number
 }
+
+interface TopDomain { domain: string; count: number }
+interface TopClient { ip: string; name: string; count: number }
 
 export default function OverviewPage() {
   const [summary, setSummary] = useState<SummaryData | null>(null)
-  const [history, setHistory] = useState<HistoryRow[]>([])
+  const [blocks, setBlocks] = useState<BlockPoint[]>([])
+  const [topDomains, setTopDomains] = useState<TopDomain[]>([])
+  const [topClients, setTopClients] = useState<TopClient[]>([])
   const [loading, setLoading] = useState(true)
 
   const fetchSummary = useCallback(async () => {
@@ -51,19 +57,36 @@ export default function OverviewPage() {
     }
   }, [])
 
-  const fetchHistory = useCallback(async () => {
+  const fetchBlocks = useCallback(async () => {
     try {
-      const res = await fetch('/api/stats/history?hours=24')
-      if (res.ok) setHistory(await res.json())
+      const res = await fetch('/api/stats/blocks')
+      if (res.ok) {
+        const { data } = await res.json()
+        setBlocks(data ?? [])
+      }
     } catch (err) {
-      console.error('Failed to fetch history:', err)
+      console.error('Failed to fetch blocks history:', err)
+    }
+  }, [])
+
+  const fetchTop = useCallback(async () => {
+    try {
+      const res = await fetch('/api/stats/top')
+      if (res.ok) {
+        const { topDomains, topClients } = await res.json()
+        setTopDomains(topDomains ?? [])
+        setTopClients(topClients ?? [])
+      }
+    } catch (err) {
+      console.error('Failed to fetch top data:', err)
     }
   }, [])
 
   useEffect(() => {
     fetchSummary()
-    fetchHistory()
-  }, [fetchSummary, fetchHistory])
+    fetchBlocks()
+    fetchTop()
+  }, [fetchSummary, fetchBlocks, fetchTop])
 
   // SSE for live updates
   useEffect(() => {
@@ -75,10 +98,6 @@ export default function OverviewPage() {
     es.onerror = () => es.close()
     return () => es.close()
   }, [])
-
-  const instanceNames = Object.fromEntries(
-    (summary?.instances ?? []).map((i) => [i.id, i.name])
-  )
 
   if (loading) {
     return (
@@ -157,8 +176,26 @@ export default function OverviewPage() {
         </div>
       )}
 
-      {/* Block rate chart */}
-      <BlockRateChart data={history} instanceNames={instanceNames} />
+      {/* Blocks history chart */}
+      <BlocksHistoryChart data={blocks} label="Blocked queries — last 24 hours (10-min intervals)" />
+
+      {/* Aggregated top tables */}
+      {(topDomains.length > 0 || topClients.length > 0) && (
+        <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
+          <div className="glass-card p-4">
+            <h2 className="text-sm font-medium text-white/50 uppercase tracking-wider mb-3">
+              Top Blocked Domains
+            </h2>
+            <TopDomainsTable domains={topDomains} />
+          </div>
+          <div className="glass-card p-4">
+            <h2 className="text-sm font-medium text-white/50 uppercase tracking-wider mb-3">
+              Top Clients
+            </h2>
+            <TopClientsTable clients={topClients} />
+          </div>
+        </div>
+      )}
     </div>
   )
 }

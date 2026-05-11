@@ -8,6 +8,13 @@
       "when": 1778500426223,
       "tag": "0000_safe_queen_noir",
       "breakpoints": true
+    },
+    {
+      "idx": 1,
+      "version": "6",
+      "when": 1778514000000,
+      "tag": "0001_app_settings",
+      "breakpoints": true
     }
   ]
 }

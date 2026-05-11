@@ -11,12 +11,14 @@ import {
   LogOut,
   ShieldCheck,
   ChevronRight,
+  SlidersHorizontal,
 } from 'lucide-react'
 import { cn } from '@/lib/utils'
 import { Button } from '@/components/ui/button'
 
 const navItems = [
   { href: '/', label: 'Overview', icon: LayoutDashboard },
+  { href: '/settings/general', label: 'General', icon: SlidersHorizontal },
   { href: '/settings/instances', label: 'Instances', icon: Server },
   { href: '/settings/notifications', label: 'Notifications', icon: Bell },
   { href: '/settings/alerts', label: 'Alerts', icon: Settings },

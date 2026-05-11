@@ -8,7 +8,7 @@ import { Button } from '@/components/ui/button'
 import { Switch } from '@/components/ui/switch'
 import TopDomainsTable from '@/components/instance/TopDomainsTable'
 import TopClientsTable from '@/components/instance/TopClientsTable'
-import BlockRateChart from '@/components/dashboard/BlockRateChart'
+import BlocksHistoryChart from '@/components/dashboard/BlocksHistoryChart'
 import { RefreshCw, ArrowLeft } from 'lucide-react'
 import Link from 'next/link'
 import { toast } from 'sonner'
@@ -41,7 +41,7 @@ export default function InstanceDetailPage({
   const [instance, setInstance] = useState<InstanceData | null>(null)
   const [topDomains, setTopDomains] = useState<TopDomain[]>([])
   const [topClients, setTopClients] = useState<TopClient[]>([])
-  const [history, setHistory] = useState<unknown[]>([])
+  const [history, setHistory] = useState<{ timestamp: number; blocked: number; total: number }[]>([])
   const [hours, setHours] = useState(24)
   const [togglingBlocking, setTogglingBlocking] = useState(false)
   const [updatingGravity, setUpdatingGravity] = useState(false)
@@ -49,7 +49,7 @@ export default function InstanceDetailPage({
   const fetchData = useCallback(async () => {
     const [summaryRes, historyRes, topRes] = await Promise.allSettled([
       fetch('/api/stats/summary'),
-      fetch(`/api/stats/history?instanceId=${id}&hours=${hours}`),
+      fetch(`/api/pihole/${id}/history?hours=${hours}`),
       fetch(`/api/pihole/${id}/top`),
     ])
 
@@ -59,7 +59,8 @@ export default function InstanceDetailPage({
       if (inst) setInstance(inst)
     }
     if (historyRes.status === 'fulfilled' && historyRes.value.ok) {
-      setHistory(await historyRes.value.json())
+      const { data } = await historyRes.value.json()
+      setHistory(data ?? [])
     }
     if (topRes.status === 'fulfilled' && topRes.value.ok) {
       const { topDomains, topClients } = await topRes.value.json()
@@ -186,9 +187,15 @@ export default function InstanceDetailPage({
               </Button>
             ))}
           </div>
-          <BlockRateChart
-            data={history as never[]}
-            instanceNames={instance ? { [instance.id]: instance.name } : {}}
+          <BlocksHistoryChart
+            data={history}
+            label={
+              hours === 24
+                ? 'Blocked queries — last 24 hours (10-min intervals)'
+                : hours === 168
+                ? 'Blocked queries — last 7 days (1-hour intervals)'
+                : 'Blocked queries — last 30 days (6-hour intervals)'
+            }
           />
         </TabsContent>
 
