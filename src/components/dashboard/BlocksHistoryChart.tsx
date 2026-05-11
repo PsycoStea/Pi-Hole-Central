@@ -78,8 +78,8 @@ export default function BlocksHistoryChart({ data, label }: Props) {
               fontSize: '12px',
             }}
             labelFormatter={(val) => formatTooltipTime(val as number)}
-            formatter={(value: number, name: string) => [
-              value.toLocaleString(),
+            formatter={(value, name) => [
+              typeof value === 'number' ? value.toLocaleString() : value,
               name === 'blocked' ? 'Blocked' : 'Total',
             ]}
           />
