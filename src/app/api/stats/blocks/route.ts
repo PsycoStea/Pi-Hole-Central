@@ -11,15 +11,12 @@ export async function GET() {
   const session = await auth()
   if (!session) return NextResponse.json({ error: 'Unauthorized' }, { status: 401 })
 
-  const to = Math.floor(Date.now() / 1000)
-  const from = to - 86400
-
   const activeInstances = await db.query.instances.findMany({
     where: eq(instances.enabled, true),
   })
 
   const results = await Promise.allSettled(
-    activeInstances.map((inst) => piholeClient.getQueryHistory(inst.id, from, to))
+    activeInstances.map((inst) => piholeClient.getQueryHistory(inst.id))
   )
 
   // Aggregate by 10-min timestamp bucket across all instances

@@ -170,17 +170,32 @@ export async function triggerGravity(instanceId: string): Promise<void> {
   })
 }
 
+// Live: returns last 24h in 10-min intervals (no time params needed)
 export async function getQueryHistory(
+  instanceId: string
+): Promise<{ timestamp: number; total: number; blocked: number }[]> {
+  const data = await apiFetch<{
+    history: Array<{ timestamp: number; total: number; blocked: number }>
+  }>(instanceId, '/history')
+  return (data.history ?? []).map((h) => ({
+    timestamp: h.timestamp,
+    total: h.total,
+    blocked: h.blocked,
+  }))
+}
+
+// Long-term: database history with from/until Unix timestamps in seconds
+export async function getQueryHistoryRange(
   instanceId: string,
   from: number,
   to: number
 ): Promise<{ timestamp: number; total: number; blocked: number }[]> {
   const data = await apiFetch<{
-    history: Array<{ timestamp: number; total_queries: number; blocked_queries: number }>
-  }>(instanceId, `/history?from=${from}&until=${to}`)
+    history: Array<{ timestamp: number; total: number; blocked: number }>
+  }>(instanceId, `/history/database?from=${from}&until=${to}`)
   return (data.history ?? []).map((h) => ({
     timestamp: h.timestamp,
-    total: h.total_queries,
-    blocked: h.blocked_queries,
+    total: h.total,
+    blocked: h.blocked,
   }))
 }

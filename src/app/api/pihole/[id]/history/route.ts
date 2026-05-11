@@ -37,9 +37,13 @@ export async function GET(
   const from = to - hours * 3600
 
   try {
-    const raw = await piholeClient.getQueryHistory(id, from, to)
+    // 24h: live endpoint (no params, always returns last 24h in 10-min buckets)
+    // 7d/30d: database endpoint with explicit from/to range
+    const raw = hours === 24
+      ? await piholeClient.getQueryHistory(id)
+      : await piholeClient.getQueryHistoryRange(id, from, to)
 
-    // Bucket size: 10-min for 24h, 1-hour for 7d, 6-hour for 30d
+    // Bucket size: raw 10-min for 24h, 1-hour for 7d, 6-hour for 30d
     let bucketSeconds = 600
     if (hours > 168) bucketSeconds = 21600
     else if (hours > 24) bucketSeconds = 3600
