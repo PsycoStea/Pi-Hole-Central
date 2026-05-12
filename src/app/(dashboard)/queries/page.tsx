@@ -28,6 +28,9 @@ interface Instance {
 
 type StatusCategory = 'all' | 'blocked' | 'cached' | 'forwarded'
 
+const MAX_QUERIES = 1000
+const PAGE = 200
+
 const TIME_RANGES = [
   { label: 'Last 1h', hours: 1 },
   { label: 'Last 6h', hours: 6 },
@@ -72,24 +75,14 @@ function QueryLogContent() {
   const [selectedInstance, setSelectedInstance] = useState<string>('')
   const [hours, setHours] = useState(1)
 
-  // Input state (not committed until Search)
   const [domainInput, setDomainInput] = useState('')
   const [clientInput, setClientInput] = useState(searchParams.get('client') ?? '')
 
-  // Committed filter state — fetchQueries only depends on this, not the inputs
-  const [appliedFilters, setAppliedFilters] = useState({
-    domain: '',
-    client: searchParams.get('client') ?? '',
-  })
-
   const [statusFilter, setStatusFilter] = useState<StatusCategory>('all')
   const [queries, setQueries] = useState<QueryRow[]>([])
-  const [nextCursor, setNextCursor] = useState<string | null>(null)
-  const [oldestTimestamp, setOldestTimestamp] = useState<number | null>(null)
   const [loading, setLoading] = useState(false)
-  const [loadingMore, setLoadingMore] = useState(false)
+  const [limitReached, setLimitReached] = useState(false)
 
-  // Track the latest fetch to ignore stale responses
   const fetchIdRef = useRef(0)
 
   const isAllInstances = selectedInstance === '__all__'
@@ -107,94 +100,78 @@ function QueryLogContent() {
         if (paramInstance && insts.find((i) => i.id === paramInstance)) {
           setSelectedInstance(paramInstance)
         } else {
-          // Default to "All Instances" when there are multiple, else first instance
           setSelectedInstance(insts.length > 1 ? '__all__' : (insts[0]?.id ?? ''))
         }
       })
       .catch(() => {})
   }, [searchParams])
 
-  const fetchQueries = useCallback(
-    async (opts?: { cursor?: string; until?: number }) => {
-      if (!selectedInstance) return
-      const isLoadMore = !!(opts?.cursor || opts?.until)
-      isLoadMore ? setLoadingMore(true) : setLoading(true)
+  const fetchAllQueries = useCallback(async () => {
+    if (!selectedInstance) return
+    setLoading(true)
+    const fetchId = ++fetchIdRef.current
+    const now = Math.floor(Date.now() / 1000)
+    const from = now - hours * 3600
+    const accumulated: QueryRow[] = []
 
-      const fetchId = ++fetchIdRef.current
-
-      const now = Math.floor(Date.now() / 1000)
-      const from = now - hours * 3600
-      const params = new URLSearchParams({
-        from: String(from),
-        until: opts?.until ? String(opts.until) : String(now),
-        length: isAllInstances ? '100' : '50',
-      })
-      if (opts?.cursor) params.set('cursor', opts.cursor)
-      if (appliedFilters.domain) params.set('domain', appliedFilters.domain)
-      if (appliedFilters.client) params.set('client_ip', appliedFilters.client)
-
-      const url = isAllInstances
-        ? `/api/pihole/queries?${params}`
-        : `/api/pihole/${selectedInstance}/queries?${params}`
-
-      try {
-        const res = await fetch(url)
-        if (!res.ok) return
-        // Discard response if a newer fetch has started
-        if (fetchId !== fetchIdRef.current) return
-
-        const data = await res.json()
-
-        if (isAllInstances) {
-          setQueries((prev) => isLoadMore ? [...prev, ...(data.queries ?? [])] : (data.queries ?? []))
-          setOldestTimestamp(data.oldestTimestamp ?? null)
-          setNextCursor(null)
-        } else {
-          setQueries((prev) => isLoadMore ? [...prev, ...(data.queries ?? [])] : (data.queries ?? []))
-          setNextCursor(data.nextCursor ?? null)
-          setOldestTimestamp(null)
+    try {
+      if (isAllInstances) {
+        let until = now
+        while (accumulated.length < MAX_QUERIES) {
+          if (fetchId !== fetchIdRef.current) return
+          const params = new URLSearchParams({ from: String(from), until: String(until), length: String(PAGE) })
+          const res = await fetch(`/api/pihole/queries?${params}`)
+          if (!res.ok) break
+          const data = await res.json()
+          accumulated.push(...(data.queries ?? []))
+          if (!data.oldestTimestamp || (data.queries ?? []).length < PAGE) break
+          until = data.oldestTimestamp - 1
         }
-      } catch {
-        // silently ignore network errors
-      } finally {
-        if (fetchId === fetchIdRef.current) {
-          isLoadMore ? setLoadingMore(false) : setLoading(false)
-        }
+      } else {
+        let cursor: string | null = null
+        do {
+          if (fetchId !== fetchIdRef.current) return
+          const params = new URLSearchParams({ from: String(from), until: String(now), length: String(PAGE) })
+          if (cursor) params.set('cursor', cursor)
+          const res = await fetch(`/api/pihole/${selectedInstance}/queries?${params}`)
+          if (!res.ok) break
+          const data = await res.json()
+          accumulated.push(...(data.queries ?? []))
+          cursor = data.nextCursor ?? null
+        } while (cursor && accumulated.length < MAX_QUERIES)
       }
-    },
-    [selectedInstance, hours, appliedFilters, isAllInstances]
-  )
+    } catch {
+      // silently ignore network errors
+    }
 
-  // Auto-fetch when instance, hours, or appliedFilters change (not on every input keystroke)
+    if (fetchId === fetchIdRef.current) {
+      setQueries(accumulated)
+      setLimitReached(accumulated.length >= MAX_QUERIES)
+      setLoading(false)
+    }
+  }, [selectedInstance, hours, isAllInstances])
+
   useEffect(() => {
     if (selectedInstance) {
       setQueries([])
-      setNextCursor(null)
-      setOldestTimestamp(null)
-      fetchQueries()
+      setLimitReached(false)
+      fetchAllQueries()
     }
-  }, [selectedInstance, hours, appliedFilters, fetchQueries])
+  }, [selectedInstance, hours, fetchAllQueries])
 
-  function handleSearch() {
+  function handleRefresh() {
     setStatusFilter('all')
-    setAppliedFilters({ domain: domainInput.trim(), client: clientInput.trim() })
-    // fetchQueries triggers via the useEffect above when appliedFilters changes
+    fetchAllQueries()
   }
 
-  function handleLoadMore() {
-    if (isAllInstances && oldestTimestamp) {
-      fetchQueries({ until: oldestTimestamp - 1 })
-    } else if (nextCursor) {
-      fetchQueries({ cursor: nextCursor })
-    }
-  }
-
-  const hasMore = isAllInstances ? !!oldestTimestamp : !!nextCursor
-
-  // Client-side status filter applied on top of fetched results
-  const visibleQueries = statusFilter === 'all'
-    ? queries
-    : queries.filter((q) => classifyStatus(q.status) === statusFilter)
+  // Client-side filtering — no server round-trip needed
+  const visibleQueries = queries.filter((q) => {
+    if (domainInput && !q.domain.toLowerCase().includes(domainInput.toLowerCase())) return false
+    const clientStr = (q.client.name + ' ' + q.client.ip).toLowerCase()
+    if (clientInput && !clientStr.includes(clientInput.toLowerCase())) return false
+    if (statusFilter !== 'all' && classifyStatus(q.status) !== statusFilter) return false
+    return true
+  })
 
   return (
     <div className="space-y-6">
@@ -217,8 +194,7 @@ function QueryLogContent() {
               onChange={(e) => {
                 setSelectedInstance(e.target.value)
                 setQueries([])
-                setNextCursor(null)
-                setOldestTimestamp(null)
+                setLimitReached(false)
               }}
               className="bg-white/5 border border-white/10 rounded-md px-3 py-1.5 text-sm text-white focus:outline-none focus:ring-1 focus:ring-white/20"
             >
@@ -256,7 +232,7 @@ function QueryLogContent() {
               type="text"
               value={domainInput}
               onChange={(e) => setDomainInput(e.target.value)}
-              onKeyDown={(e) => e.key === 'Enter' && handleSearch()}
+              onKeyDown={(e) => e.key === 'Enter' && handleRefresh()}
               placeholder="e.g. google"
               className="bg-white/5 border border-white/10 rounded-md px-3 py-1.5 text-sm text-white placeholder:text-white/20 focus:outline-none focus:ring-1 focus:ring-white/20 w-44"
             />
@@ -269,14 +245,14 @@ function QueryLogContent() {
               type="text"
               value={clientInput}
               onChange={(e) => setClientInput(e.target.value)}
-              onKeyDown={(e) => e.key === 'Enter' && handleSearch()}
+              onKeyDown={(e) => e.key === 'Enter' && handleRefresh()}
               placeholder="e.g. 192.168.1.10"
               className="bg-white/5 border border-white/10 rounded-md px-3 py-1.5 text-sm text-white placeholder:text-white/20 focus:outline-none focus:ring-1 focus:ring-white/20 w-40"
             />
           </div>
 
-          <Button size="sm" onClick={handleSearch} disabled={loading}>
-            Search
+          <Button size="sm" onClick={handleRefresh} disabled={loading}>
+            Refresh
           </Button>
         </div>
 
@@ -298,18 +274,20 @@ function QueryLogContent() {
               </button>
             ))}
           </div>
-          {appliedFilters.domain && (
+          {queries.length > 0 && (
             <span className="text-xs text-white/30 ml-2">
-              domain: <span className="text-white/60">&ldquo;{appliedFilters.domain}&rdquo;</span>
-            </span>
-          )}
-          {appliedFilters.client && (
-            <span className="text-xs text-white/30 ml-2">
-              client: <span className="text-white/60">&ldquo;{appliedFilters.client}&rdquo;</span>
+              {visibleQueries.length} of {queries.length} queries
             </span>
           )}
         </div>
       </div>
+
+      {/* Limit notice */}
+      {limitReached && (
+        <div className="text-xs text-white/40 text-center">
+          Showing first {MAX_QUERIES.toLocaleString()} queries. Narrow the time range to see more.
+        </div>
+      )}
 
       {/* Table */}
       <div className="glass-card overflow-hidden">
@@ -320,60 +298,46 @@ function QueryLogContent() {
             {queries.length > 0 ? 'No queries match the selected filter' : 'No queries found'}
           </div>
         ) : (
-          <>
-            <div className="overflow-x-auto">
-              <table className="w-full text-sm">
-                <thead>
-                  <tr className="border-b border-white/5">
-                    <th className="text-left px-4 py-3 text-white/40 font-medium whitespace-nowrap">Time</th>
+          <div className="overflow-x-auto">
+            <table className="w-full text-sm">
+              <thead>
+                <tr className="border-b border-white/5">
+                  <th className="text-left px-4 py-3 text-white/40 font-medium whitespace-nowrap">Time</th>
+                  {isAllInstances && (
+                    <th className="text-left px-4 py-3 text-white/40 font-medium whitespace-nowrap">Instance</th>
+                  )}
+                  <th className="text-left px-4 py-3 text-white/40 font-medium">Domain</th>
+                  <th className="text-left px-4 py-3 text-white/40 font-medium whitespace-nowrap">Client</th>
+                  <th className="text-left px-4 py-3 text-white/40 font-medium">Type</th>
+                  <th className="text-left px-4 py-3 text-white/40 font-medium">Status</th>
+                  <th className="text-left px-4 py-3 text-white/40 font-medium">Upstream</th>
+                </tr>
+              </thead>
+              <tbody>
+                {visibleQueries.map((q, i) => (
+                  <tr key={`${q.id}-${q.instanceId ?? ''}-${i}`} className="border-b border-white/5 hover:bg-white/3 transition-colors">
+                    <td className="px-4 py-2.5 text-white/50 font-mono text-xs whitespace-nowrap">{formatTime(q.time)}</td>
                     {isAllInstances && (
-                      <th className="text-left px-4 py-3 text-white/40 font-medium whitespace-nowrap">Instance</th>
-                    )}
-                    <th className="text-left px-4 py-3 text-white/40 font-medium">Domain</th>
-                    <th className="text-left px-4 py-3 text-white/40 font-medium whitespace-nowrap">Client</th>
-                    <th className="text-left px-4 py-3 text-white/40 font-medium">Type</th>
-                    <th className="text-left px-4 py-3 text-white/40 font-medium">Status</th>
-                    <th className="text-left px-4 py-3 text-white/40 font-medium">Upstream</th>
-                  </tr>
-                </thead>
-                <tbody>
-                  {visibleQueries.map((q, i) => (
-                    <tr key={`${q.id}-${q.instanceId ?? ''}-${i}`} className="border-b border-white/5 hover:bg-white/3 transition-colors">
-                      <td className="px-4 py-2.5 text-white/50 font-mono text-xs whitespace-nowrap">{formatTime(q.time)}</td>
-                      {isAllInstances && (
-                        <td className="px-4 py-2.5">
-                          <span className="inline-block px-2 py-0.5 rounded text-xs bg-white/8 text-white/60 whitespace-nowrap">
-                            {q.instanceName ?? q.instanceId ?? '—'}
-                          </span>
-                        </td>
-                      )}
-                      <td className="px-4 py-2.5 text-white max-w-xs truncate">{q.domain}</td>
-                      <td className="px-4 py-2.5 text-white/70 font-mono text-xs whitespace-nowrap">
-                        {q.client.name || q.client.ip}
-                      </td>
-                      <td className="px-4 py-2.5 text-white/50">{q.type}</td>
                       <td className="px-4 py-2.5">
-                        <StatusBadge status={q.status} />
+                        <span className="inline-block px-2 py-0.5 rounded text-xs bg-white/8 text-white/60 whitespace-nowrap">
+                          {q.instanceName ?? q.instanceId ?? '—'}
+                        </span>
                       </td>
-                      <td className="px-4 py-2.5 text-white/40 text-xs truncate max-w-[10rem]">{q.upstream ?? '—'}</td>
-                    </tr>
-                  ))}
-                </tbody>
-              </table>
-            </div>
-            {hasMore && (
-              <div className="p-4 text-center border-t border-white/5">
-                <Button
-                  size="sm"
-                  variant="outline"
-                  onClick={handleLoadMore}
-                  disabled={loadingMore}
-                >
-                  {loadingMore ? 'Loading...' : isAllInstances ? 'Load older' : 'Load more'}
-                </Button>
-              </div>
-            )}
-          </>
+                    )}
+                    <td className="px-4 py-2.5 text-white max-w-xs truncate">{q.domain}</td>
+                    <td className="px-4 py-2.5 text-white/70 font-mono text-xs whitespace-nowrap">
+                      {q.client.name || q.client.ip}
+                    </td>
+                    <td className="px-4 py-2.5 text-white/50">{q.type}</td>
+                    <td className="px-4 py-2.5">
+                      <StatusBadge status={q.status} />
+                    </td>
+                    <td className="px-4 py-2.5 text-white/40 text-xs truncate max-w-[10rem]">{q.upstream ?? '—'}</td>
+                  </tr>
+                ))}
+              </tbody>
+            </table>
+          </div>
         )}
       </div>
     </div>
