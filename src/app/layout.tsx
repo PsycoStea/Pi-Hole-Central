@@ -3,7 +3,7 @@ import { Space_Grotesk, DM_Sans, Geist_Mono } from 'next/font/google'
 import './globals.css'
 import { Toaster } from '@/components/ui/sonner'
 import { startPollingOnce } from '@/lib/polling/init'
-import { ThemeProvider } from '@/components/theme-provider'
+import { Providers } from '@/components/providers'
 
 startPollingOnce()
 
@@ -34,10 +34,10 @@ export default function RootLayout({ children }: { children: React.ReactNode }) 
       className={`${spaceGrotesk.variable} ${dmSans.variable} ${geistMono.variable} h-full antialiased`}
     >
       <body className="min-h-full flex flex-col bg-background text-foreground">
-        <ThemeProvider attribute="class" defaultTheme="dark" enableSystem={false}>
+        <Providers>
           {children}
           <Toaster />
-        </ThemeProvider>
+        </Providers>
       </body>
     </html>
   )
