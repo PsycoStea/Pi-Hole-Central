@@ -30,10 +30,10 @@ export async function POST(
   if (!session) return NextResponse.json({ error: 'Unauthorized' }, { status: 401 })
 
   const { id } = await params
-  const { domain, list } = await req.json()
+  const { domain, list, kind = 'exact', comment = '', groups = [0], enabled = true } = await req.json()
 
   try {
-    await piholeClient.addDomain(id, domain, list)
+    await piholeClient.addDomain(id, domain, list, kind, comment, groups, enabled)
     return NextResponse.json({ ok: true })
   } catch (err) {
     return NextResponse.json({ error: String(err) }, { status: 502 })
@@ -48,10 +48,10 @@ export async function DELETE(
   if (!session) return NextResponse.json({ error: 'Unauthorized' }, { status: 401 })
 
   const { id } = await params
-  const { domain, list } = await req.json()
+  const { list, kind, id: domainId } = await req.json()
 
   try {
-    await piholeClient.removeDomain(id, domain, list)
+    await piholeClient.removeDomain(id, list, kind, domainId)
     return NextResponse.json({ ok: true })
   } catch (err) {
     return NextResponse.json({ error: String(err) }, { status: 502 })

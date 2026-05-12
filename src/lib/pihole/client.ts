@@ -5,6 +5,8 @@ import type {
   PiHoleSession,
   BlockingStatus,
   PiHoleQuery,
+  Domain,
+  Group,
 } from './types'
 import { db } from '@/lib/db'
 import { instances } from '@/lib/db/schema'
@@ -144,20 +146,25 @@ export async function setBlocking(
 export async function addDomain(
   instanceId: string,
   domain: string,
-  list: 'allow' | 'deny'
+  list: 'allow' | 'deny',
+  kind: 'exact' | 'regex' = 'exact',
+  comment = '',
+  groups = [0],
+  enabled = true
 ): Promise<void> {
-  await apiFetch(instanceId, `/domains/${list}`, {
+  await apiFetch(instanceId, `/domains/${list}/${kind}`, {
     method: 'POST',
-    body: JSON.stringify({ domain }),
+    body: JSON.stringify({ domain, comment, groups, enabled }),
   })
 }
 
 export async function removeDomain(
   instanceId: string,
-  domain: string,
-  list: 'allow' | 'deny'
+  list: 'allow' | 'deny',
+  kind: string,
+  id: number
 ): Promise<void> {
-  await apiFetch(instanceId, `/domains/${list}/${encodeURIComponent(domain)}`, {
+  await apiFetch(instanceId, `/domains/${list}/${kind}/${id}`, {
     method: 'DELETE',
   })
 }
@@ -204,11 +211,14 @@ export async function getQueryHistoryRange(
 export async function getDomains(
   instanceId: string,
   list: 'allow' | 'deny'
-): Promise<{ domain: string; kind: string; comment: string; id: number }[]> {
-  const data = await apiFetch<{
-    domains: Array<{ domain: string; kind: string; comment: string; id: number }>
-  }>(instanceId, `/domains/${list}`)
+): Promise<Domain[]> {
+  const data = await apiFetch<{ domains: Domain[] }>(instanceId, `/domains/${list}`)
   return data.domains ?? []
+}
+
+export async function getGroups(instanceId: string): Promise<Group[]> {
+  const data = await apiFetch<{ groups: Group[] }>(instanceId, '/groups')
+  return data.groups ?? []
 }
 
 export async function getQueries(

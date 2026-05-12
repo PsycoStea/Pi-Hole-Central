@@ -55,3 +55,19 @@ export interface PiHoleQuery {
   reply: { type: string; time: number }
   upstream: string | null
 }
+
+export interface Domain {
+  id: number
+  domain: string
+  kind: 'exact' | 'regex'
+  comment: string
+  enabled: boolean
+  groups: number[]
+}
+
+export interface Group {
+  id: number
+  name: string
+  description: string
+  enabled: boolean
+}
