@@ -21,18 +21,25 @@ export const { handlers, auth, signIn, signOut } = NextAuth({
         })
         if (!user) return null
         const valid = await bcrypt.compare(credentials.password as string, user.passwordHash)
-        return valid ? { id: user.id, name: user.username } : null
+        if (!valid) return null
+        return { id: user.id, name: user.username, role: user.role as 'admin' | 'viewer' }
       },
     }),
   ],
   callbacks: {
     ...authConfig.callbacks,
     jwt({ token, user }) {
-      if (user) token.id = user.id
+      if (user) {
+        token.id = user.id
+        token.role = (user as { role: 'admin' | 'viewer' }).role
+      }
       return token
     },
     session({ session, token }) {
-      if (session.user) session.user.id = token.id as string
+      if (session.user) {
+        session.user.id = token.id as string
+        session.user.role = (token.role ?? 'admin') as 'admin' | 'viewer'
+      }
       return session
     },
   },

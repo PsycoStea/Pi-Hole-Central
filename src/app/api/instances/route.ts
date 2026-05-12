@@ -1,5 +1,6 @@
 import { NextResponse } from 'next/server'
 import { auth } from '@/lib/auth'
+import { requireAdmin } from '@/lib/auth-guard'
 import { db } from '@/lib/db'
 import { instances } from '@/lib/db/schema'
 import { encrypt } from '@/lib/crypto'
@@ -14,8 +15,8 @@ export async function GET() {
 }
 
 export async function POST(req: Request) {
-  const session = await auth()
-  if (!session) return NextResponse.json({ error: 'Unauthorized' }, { status: 401 })
+  const denied = await requireAdmin()
+  if (denied) return denied
 
   const body = await req.json()
   const { name, url, password } = body

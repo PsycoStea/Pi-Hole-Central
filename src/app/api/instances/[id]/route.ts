@@ -1,5 +1,6 @@
 import { NextResponse } from 'next/server'
 import { auth } from '@/lib/auth'
+import { requireAdmin } from '@/lib/auth-guard'
 import { db } from '@/lib/db'
 import { instances } from '@/lib/db/schema'
 import { eq } from 'drizzle-orm'
@@ -16,8 +17,8 @@ export async function GET(_req: Request, { params }: { params: Promise<{ id: str
 }
 
 export async function PUT(req: Request, { params }: { params: Promise<{ id: string }> }) {
-  const session = await auth()
-  if (!session) return NextResponse.json({ error: 'Unauthorized' }, { status: 401 })
+  const denied = await requireAdmin()
+  if (denied) return denied
   const { id } = await params
   const body = await req.json()
   const update: Partial<typeof instances.$inferInsert> = {}
@@ -30,8 +31,8 @@ export async function PUT(req: Request, { params }: { params: Promise<{ id: stri
 }
 
 export async function DELETE(_req: Request, { params }: { params: Promise<{ id: string }> }) {
-  const session = await auth()
-  if (!session) return NextResponse.json({ error: 'Unauthorized' }, { status: 401 })
+  const denied = await requireAdmin()
+  if (denied) return denied
   const { id } = await params
   await db.delete(instances).where(eq(instances.id, id))
   return NextResponse.json({ ok: true })

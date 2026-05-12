@@ -1,4 +1,4 @@
-import { auth } from '@/lib/auth'
+import { requireAdmin } from '@/lib/auth-guard'
 import { db } from '@/lib/db'
 import { instances } from '@/lib/db/schema'
 import { eq } from 'drizzle-orm'
@@ -8,8 +8,8 @@ import { NextResponse } from 'next/server'
 export const dynamic = 'force-dynamic'
 
 export async function POST(req: Request) {
-  const session = await auth()
-  if (!session) return NextResponse.json({ error: 'Unauthorized' }, { status: 401 })
+  const denied = await requireAdmin()
+  if (denied) return denied
 
   const { enabled } = await req.json()
   if (typeof enabled !== 'boolean') {

@@ -1,4 +1,5 @@
 import { auth } from '@/lib/auth'
+import { requireAdmin } from '@/lib/auth-guard'
 import { db } from '@/lib/db'
 import { appSettings } from '@/lib/db/schema'
 import { eq } from 'drizzle-orm'
@@ -16,8 +17,8 @@ export async function GET() {
 }
 
 export async function PUT(req: Request) {
-  const session = await auth()
-  if (!session) return NextResponse.json({ error: 'Unauthorized' }, { status: 401 })
+  const denied = await requireAdmin()
+  if (denied) return denied
 
   const { retentionDays } = await req.json()
   const days = parseInt(retentionDays, 10)

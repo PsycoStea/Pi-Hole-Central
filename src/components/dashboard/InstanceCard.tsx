@@ -20,9 +20,10 @@ interface InstanceData {
   blocking: { blocking: 'enabled' | 'disabled' | 'unknown' } | null
 }
 
-export default function InstanceCard({ instance, onUpdate }: {
+export default function InstanceCard({ instance, onUpdate, role = 'admin' }: {
   instance: InstanceData
   onUpdate: () => void
+  role?: 'admin' | 'viewer'
 }) {
   const [togglingBlocking, setTogglingBlocking] = useState(false)
   const [updatingGravity, setUpdatingGravity] = useState(false)
@@ -110,25 +111,35 @@ export default function InstanceCard({ instance, onUpdate }: {
 
       <div className="flex items-center justify-between pt-1 border-t border-border">
         <div className="flex items-center gap-2">
-          <Switch
-            checked={blockingEnabled}
-            onCheckedChange={toggleBlocking}
-            disabled={!isOnline || togglingBlocking}
-            className="scale-90"
-          />
-          <span className="text-xs text-muted-foreground">Blocking</span>
+          {role === 'admin' ? (
+            <>
+              <Switch
+                checked={blockingEnabled}
+                onCheckedChange={toggleBlocking}
+                disabled={!isOnline || togglingBlocking}
+                className="scale-90"
+              />
+              <span className="text-xs text-muted-foreground">Blocking</span>
+            </>
+          ) : (
+            <span className="text-xs text-muted-foreground">
+              Blocking: <span className={blockingEnabled ? 'text-green-400' : 'text-red-400'}>{blockingEnabled ? 'On' : 'Off'}</span>
+            </span>
+          )}
         </div>
         <div className="flex items-center gap-1">
-          <Button
-            variant="ghost"
-            size="icon"
-            className="h-7 w-7 text-muted-foreground hover:text-foreground"
-            onClick={triggerGravity}
-            disabled={!isOnline || updatingGravity}
-            title="Update gravity"
-          >
-            <RefreshCw className={cn('h-3.5 w-3.5', updatingGravity && 'animate-spin')} />
-          </Button>
+          {role === 'admin' && (
+            <Button
+              variant="ghost"
+              size="icon"
+              className="h-7 w-7 text-muted-foreground hover:text-foreground"
+              onClick={triggerGravity}
+              disabled={!isOnline || updatingGravity}
+              title="Update gravity"
+            >
+              <RefreshCw className={cn('h-3.5 w-3.5', updatingGravity && 'animate-spin')} />
+            </Button>
+          )}
           <Link href={`/instances/${instance.id}`}>
             <Button
               variant="ghost"

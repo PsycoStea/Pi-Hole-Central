@@ -1,4 +1,5 @@
 import { auth } from '@/lib/auth'
+import { requireAdmin } from '@/lib/auth-guard'
 import * as piholeClient from '@/lib/pihole/client'
 import { NextResponse } from 'next/server'
 
@@ -26,8 +27,8 @@ export async function POST(
   req: Request,
   { params }: { params: Promise<{ id: string }> }
 ) {
-  const session = await auth()
-  if (!session) return NextResponse.json({ error: 'Unauthorized' }, { status: 401 })
+  const denied = await requireAdmin()
+  if (denied) return denied
 
   const { id } = await params
   const { domain, list, kind = 'exact', comment = '', groups = [0], enabled = true } = await req.json()
@@ -44,8 +45,8 @@ export async function DELETE(
   req: Request,
   { params }: { params: Promise<{ id: string }> }
 ) {
-  const session = await auth()
-  if (!session) return NextResponse.json({ error: 'Unauthorized' }, { status: 401 })
+  const denied = await requireAdmin()
+  if (denied) return denied
 
   const { id } = await params
   const { list, kind, id: domainId } = await req.json()

@@ -14,12 +14,14 @@ import {
   SlidersHorizontal,
   ScrollText,
   FilterX,
+  UserCog,
+  Users2,
 } from 'lucide-react'
 import { cn } from '@/lib/utils'
 import { Button } from '@/components/ui/button'
 import { ThemeToggle } from '@/components/theme-toggle'
 
-const navItems = [
+const baseNavItems = [
   { href: '/', label: 'Overview', icon: LayoutDashboard },
   { href: '/queries', label: 'Query Log', icon: ScrollText },
   { href: '/settings/domains', label: 'Domains', icon: FilterX },
@@ -27,9 +29,13 @@ const navItems = [
   { href: '/settings/instances', label: 'Instances', icon: Server },
   { href: '/settings/notifications', label: 'Notifications', icon: Bell },
   { href: '/settings/alerts', label: 'Alerts', icon: Settings },
+  { href: '/settings/account', label: 'Account', icon: UserCog },
 ]
 
-export default function Sidebar({ user }: { user: string }) {
+export default function Sidebar({ user, role }: { user: string; role: 'admin' | 'viewer' }) {
+  const navItems = role === 'admin'
+    ? [...baseNavItems, { href: '/settings/users', label: 'Users', icon: Users2 }]
+    : baseNavItems
   const pathname = usePathname()
 
   return (

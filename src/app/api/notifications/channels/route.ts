@@ -1,5 +1,6 @@
 import { NextResponse } from 'next/server'
 import { auth } from '@/lib/auth'
+import { requireAdmin } from '@/lib/auth-guard'
 import { db } from '@/lib/db'
 import { notificationChannels } from '@/lib/db/schema'
 import { encrypt } from '@/lib/crypto'
@@ -13,8 +14,8 @@ export async function GET() {
 }
 
 export async function POST(req: Request) {
-  const session = await auth()
-  if (!session) return NextResponse.json({ error: 'Unauthorized' }, { status: 401 })
+  const denied = await requireAdmin()
+  if (denied) return denied
   const { type, label, config } = await req.json()
   if (!type || !label || !config) {
     return NextResponse.json({ error: 'type, label, and config required' }, { status: 400 })

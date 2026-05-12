@@ -1,6 +1,7 @@
 'use client'
 
 import { useEffect, useState, useCallback } from 'react'
+import { useSession } from 'next-auth/react'
 import StatCard from '@/components/dashboard/StatCard'
 import InstanceCard from '@/components/dashboard/InstanceCard'
 import BlocksHistoryChart from '@/components/dashboard/BlocksHistoryChart'
@@ -42,6 +43,8 @@ interface TopDomain { domain: string; count: number }
 interface TopClient { ip: string; name: string; count: number }
 
 export default function OverviewPage() {
+  const { data: session } = useSession()
+  const role = session?.user?.role ?? 'viewer'
   const [summary, setSummary] = useState<SummaryData | null>(null)
   const [blocks, setBlocks] = useState<BlockPoint[]>([])
   const [topDomains, setTopDomains] = useState<TopDomain[]>([])
@@ -163,38 +166,40 @@ export default function OverviewPage() {
             {agg ? `${agg.instancesOnline} of ${agg.instancesTotal} instances online` : 'No instances configured'}
           </p>
         </div>
-        <div className="flex items-center gap-2 flex-shrink-0">
-          <Button
-            size="sm"
-            variant="outline"
-            onClick={() => handleBulkBlocking(true)}
-            disabled={bulkBlocking}
-            className="text-green-400 border-green-400/30 hover:bg-green-400/10"
-          >
-            <ShieldCheck className="h-4 w-4 mr-1.5" />
-            Enable All
-          </Button>
-          <Button
-            size="sm"
-            variant="outline"
-            onClick={() => handleBulkBlocking(false)}
-            disabled={bulkBlocking}
-            className="text-red-400 border-red-400/30 hover:bg-red-400/10"
-          >
-            <ShieldX className="h-4 w-4 mr-1.5" />
-            Disable All
-          </Button>
-          <Button
-            size="sm"
-            variant="outline"
-            onClick={handleBulkGravity}
-            disabled={bulkGravity}
-            className="text-blue-400 border-blue-400/30 hover:bg-blue-400/10"
-          >
-            <RefreshCw className={`h-4 w-4 mr-1.5 ${bulkGravity ? 'animate-spin' : ''}`} />
-            Update Gravity
-          </Button>
-        </div>
+        {role === 'admin' && (
+          <div className="flex items-center gap-2 flex-shrink-0">
+            <Button
+              size="sm"
+              variant="outline"
+              onClick={() => handleBulkBlocking(true)}
+              disabled={bulkBlocking}
+              className="text-green-400 border-green-400/30 hover:bg-green-400/10"
+            >
+              <ShieldCheck className="h-4 w-4 mr-1.5" />
+              Enable All
+            </Button>
+            <Button
+              size="sm"
+              variant="outline"
+              onClick={() => handleBulkBlocking(false)}
+              disabled={bulkBlocking}
+              className="text-red-400 border-red-400/30 hover:bg-red-400/10"
+            >
+              <ShieldX className="h-4 w-4 mr-1.5" />
+              Disable All
+            </Button>
+            <Button
+              size="sm"
+              variant="outline"
+              onClick={handleBulkGravity}
+              disabled={bulkGravity}
+              className="text-blue-400 border-blue-400/30 hover:bg-blue-400/10"
+            >
+              <RefreshCw className={`h-4 w-4 mr-1.5 ${bulkGravity ? 'animate-spin' : ''}`} />
+              Update Gravity
+            </Button>
+          </div>
+        )}
       </div>
 
       {/* Summary cards */}
@@ -241,7 +246,7 @@ export default function OverviewPage() {
           </h2>
           <div className="grid grid-cols-1 md:grid-cols-2 xl:grid-cols-3 gap-4">
             {summary.instances.map((inst) => (
-              <InstanceCard key={inst.id} instance={inst} onUpdate={fetchSummary} />
+              <InstanceCard key={inst.id} instance={inst} onUpdate={fetchSummary} role={role as 'admin' | 'viewer'} />
             ))}
           </div>
         </div>
