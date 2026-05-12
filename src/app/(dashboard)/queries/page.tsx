@@ -175,7 +175,7 @@ function QueryLogContent() {
     if (domainInput && !q.domain.toLowerCase().includes(domainInput.toLowerCase())) return false
     if (clientInput) {
       const ipMatch = q.client.ip === clientInput
-      const nameMatch = q.client.name.toLowerCase().includes(clientInput.toLowerCase())
+      const nameMatch = (q.client.name ?? '').toLowerCase().includes(clientInput.toLowerCase())
       if (!ipMatch && !nameMatch) return false
     }
     if (statusFilter !== 'all' && classifyStatus(q.status) !== statusFilter) return false

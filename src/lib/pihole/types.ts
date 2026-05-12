@@ -50,7 +50,7 @@ export interface PiHoleQuery {
   time: number
   type: string
   domain: string
-  client: { ip: string; name: string }
+  client: { ip: string; name: string | null }
   status: string
   reply: { type: string; time: number }
   upstream: string | null
