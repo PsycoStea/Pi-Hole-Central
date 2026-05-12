@@ -4,6 +4,7 @@ import type {
   TopClient,
   PiHoleSession,
   BlockingStatus,
+  PiHoleQuery,
 } from './types'
 import { db } from '@/lib/db'
 import { instances } from '@/lib/db/schema'
@@ -198,4 +199,64 @@ export async function getQueryHistoryRange(
     total: h.total,
     blocked: h.blocked,
   }))
+}
+
+export async function getDomains(
+  instanceId: string,
+  list: 'allow' | 'deny'
+): Promise<{ domain: string; kind: string; comment: string; id: number }[]> {
+  const data = await apiFetch<{
+    domains: Array<{ domain: string; kind: string; comment: string; id: number }>
+  }>(instanceId, `/domains/${list}`)
+  return data.domains ?? []
+}
+
+export async function getQueries(
+  instanceId: string,
+  opts: {
+    from?: number
+    until?: number
+    length?: number
+    cursor?: string
+    domain?: string
+    client_ip?: string
+  }
+): Promise<{ queries: PiHoleQuery[]; nextCursor: string | null }> {
+  const params = new URLSearchParams()
+  if (opts.from) params.set('from', String(opts.from))
+  if (opts.until) params.set('until', String(opts.until))
+  params.set('length', String(opts.length ?? 50))
+  if (opts.cursor) params.set('cursor', opts.cursor)
+  if (opts.domain) params.set('domain', opts.domain)
+  if (opts.client_ip) params.set('client_ip', opts.client_ip)
+  const data = await apiFetch<{
+    queries: PiHoleQuery[]
+    cursor: { next_cursor: string | null }
+  }>(instanceId, `/queries?${params}`)
+  return { queries: data.queries ?? [], nextCursor: data.cursor?.next_cursor ?? null }
+}
+
+export async function getInstanceInfo(instanceId: string): Promise<{
+  version: { core: string; ftl: string; web: string }
+  system: {
+    uptime: number
+    memory: {
+      ram: { used: number; total: number }
+      swap: { used: number; total: number }
+    }
+  }
+}> {
+  const [ver, sys] = await Promise.all([
+    apiFetch<{ version: { core: string; ftl: string; web: string } }>(instanceId, '/info/version'),
+    apiFetch<{
+      system: {
+        uptime: number
+        memory: {
+          ram: { used: number; total: number }
+          swap: { used: number; total: number }
+        }
+      }
+    }>(instanceId, '/info/system'),
+  ])
+  return { version: ver.version, system: sys.system }
 }

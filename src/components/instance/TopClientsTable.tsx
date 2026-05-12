@@ -1,3 +1,4 @@
+import Link from 'next/link'
 import {
   Table,
   TableBody,
@@ -13,7 +14,13 @@ interface TopClient {
   count: number
 }
 
-export default function TopClientsTable({ clients }: { clients: TopClient[] }) {
+export default function TopClientsTable({
+  clients,
+  instanceId,
+}: {
+  clients: TopClient[]
+  instanceId?: string
+}) {
   if (!clients.length) {
     return <p className="text-white/30 text-sm text-center py-8">No data</p>
   }
@@ -31,7 +38,16 @@ export default function TopClientsTable({ clients }: { clients: TopClient[] }) {
           <TableRow key={c.ip} className="border-white/5 hover:bg-white/5">
             <TableCell className="font-mono text-xs">
               <div className="space-y-1">
-                <p className="text-white/90">{c.name || c.ip}</p>
+                {instanceId ? (
+                  <Link
+                    href={`/queries?instance=${instanceId}&client=${c.ip}`}
+                    className="text-white/90 hover:text-blue-400 transition-colors cursor-pointer"
+                  >
+                    {c.name || c.ip}
+                  </Link>
+                ) : (
+                  <p className="text-white/90">{c.name || c.ip}</p>
+                )}
                 {c.name && c.name !== c.ip && (
                   <p className="text-white/30 text-xs">{c.ip}</p>
                 )}

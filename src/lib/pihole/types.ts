@@ -44,3 +44,14 @@ export interface BlockingStatus {
   blocking: 'enabled' | 'disabled' | 'unknown'
   timer: number | null
 }
+
+export interface PiHoleQuery {
+  id: number
+  time: number
+  type: string
+  domain: string
+  client: { ip: string; name: string }
+  status: string
+  reply: { type: string; time: number }
+  upstream: string | null
+}

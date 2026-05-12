@@ -12,12 +12,16 @@ import {
   ShieldCheck,
   ChevronRight,
   SlidersHorizontal,
+  ScrollText,
+  FilterX,
 } from 'lucide-react'
 import { cn } from '@/lib/utils'
 import { Button } from '@/components/ui/button'
 
 const navItems = [
   { href: '/', label: 'Overview', icon: LayoutDashboard },
+  { href: '/queries', label: 'Query Log', icon: ScrollText },
+  { href: '/settings/domains', label: 'Domains', icon: FilterX },
   { href: '/settings/general', label: 'General', icon: SlidersHorizontal },
   { href: '/settings/instances', label: 'Instances', icon: Server },
   { href: '/settings/notifications', label: 'Notifications', icon: Bell },

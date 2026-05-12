@@ -9,10 +9,11 @@ import { Switch } from '@/components/ui/switch'
 import TopDomainsTable from '@/components/instance/TopDomainsTable'
 import TopClientsTable from '@/components/instance/TopClientsTable'
 import BlocksHistoryChart from '@/components/dashboard/BlocksHistoryChart'
-import { RefreshCw, ArrowLeft } from 'lucide-react'
+import { RefreshCw, ArrowLeft, Tag, Cpu, Clock, MemoryStick } from 'lucide-react'
 import Link from 'next/link'
 import { toast } from 'sonner'
 import { cn } from '@/lib/utils'
+import StatCard from '@/components/dashboard/StatCard'
 
 interface Summary {
   queries: { total: number; blocked: number; percent_blocked: number; unique_domains: number }
@@ -32,6 +33,15 @@ interface InstanceData {
 interface TopDomain { domain: string; count: number }
 interface TopClient { ip: string; name: string; count: number }
 
+function formatUptime(seconds: number): string {
+  const d = Math.floor(seconds / 86400)
+  const h = Math.floor((seconds % 86400) / 3600)
+  const m = Math.floor((seconds % 3600) / 60)
+  if (d > 0) return `${d}d ${h}h`
+  if (h > 0) return `${h}h ${m}m`
+  return `${m}m`
+}
+
 export default function InstanceDetailPage({
   params,
 }: {
@@ -45,6 +55,10 @@ export default function InstanceDetailPage({
   const [hours, setHours] = useState(24)
   const [togglingBlocking, setTogglingBlocking] = useState(false)
   const [updatingGravity, setUpdatingGravity] = useState(false)
+  const [instanceInfo, setInstanceInfo] = useState<{
+    version: { core: string; ftl: string; web: string }
+    system: { uptime: number; memory: { ram: { used: number; total: number }; swap: { used: number; total: number } } }
+  } | null>(null)
 
   const fetchData = useCallback(async () => {
     const [summaryRes, historyRes, topRes] = await Promise.allSettled([
@@ -70,6 +84,13 @@ export default function InstanceDetailPage({
   }, [id, hours])
 
   useEffect(() => { fetchData() }, [fetchData])
+
+  useEffect(() => {
+    fetch(`/api/pihole/${id}/info`)
+      .then((r) => r.ok ? r.json() : null)
+      .then((data) => { if (data) setInstanceInfo(data) })
+      .catch(() => {})
+  }, [id])
 
   async function toggleBlocking(enabled: boolean) {
     setTogglingBlocking(true)
@@ -171,6 +192,7 @@ export default function InstanceDetailPage({
           <TabsTrigger value="overview">Overview</TabsTrigger>
           <TabsTrigger value="domains">Top Domains</TabsTrigger>
           <TabsTrigger value="clients">Top Clients</TabsTrigger>
+          <TabsTrigger value="system">System</TabsTrigger>
         </TabsList>
 
         <TabsContent value="overview" className="mt-4">
@@ -207,8 +229,47 @@ export default function InstanceDetailPage({
 
         <TabsContent value="clients" className="mt-4">
           <div className="glass-card p-4">
-            <TopClientsTable clients={topClients} />
+            <TopClientsTable clients={topClients} instanceId={id} />
           </div>
+        </TabsContent>
+
+        <TabsContent value="system" className="mt-4">
+          {instanceInfo ? (
+            <div className="grid grid-cols-2 md:grid-cols-4 gap-4">
+              <StatCard
+                title="Pi-Hole"
+                value={`v${instanceInfo.version.core}`}
+                subtitle="Core version"
+                icon={Tag}
+                color="blue"
+              />
+              <StatCard
+                title="FTL"
+                value={`v${instanceInfo.version.ftl}`}
+                subtitle="DNS engine version"
+                icon={Cpu}
+                color="purple"
+              />
+              <StatCard
+                title="Uptime"
+                value={formatUptime(instanceInfo.system.uptime)}
+                subtitle="System uptime"
+                icon={Clock}
+                color="green"
+              />
+              <StatCard
+                title="RAM"
+                value={`${Math.round(instanceInfo.system.memory.ram.used / 1024 / 1024)} MB`}
+                subtitle={`of ${Math.round(instanceInfo.system.memory.ram.total / 1024 / 1024)} MB used`}
+                icon={MemoryStick}
+                color="red"
+              />
+            </div>
+          ) : (
+            <div className="glass-card p-8 text-center text-white/30 text-sm">
+              {isOnline ? 'Loading system info...' : 'Instance is offline'}
+            </div>
+          )}
         </TabsContent>
       </Tabs>
     </div>
