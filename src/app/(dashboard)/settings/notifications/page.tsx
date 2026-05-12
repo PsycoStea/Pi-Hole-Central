@@ -85,10 +85,10 @@ function AddChannelDialog({ onSave, onClose }: { onSave: () => void; onClose: ()
       <div className="space-y-2">
         <Label>Provider</Label>
         <Select value={type} onValueChange={(v) => { setType(v ?? 'gotify'); setConfig({}) }}>
-          <SelectTrigger className="bg-white/5 border-white/10">
+          <SelectTrigger className="bg-white/5 border-border">
             <SelectValue />
           </SelectTrigger>
-          <SelectContent className="bg-zinc-900 border-white/10">
+          <SelectContent className="bg-zinc-900 border-border">
             {Object.keys(PROVIDER_FIELDS).map((p) => (
               <SelectItem key={p} value={p} className="capitalize">{p}</SelectItem>
             ))}
@@ -101,7 +101,7 @@ function AddChannelDialog({ onSave, onClose }: { onSave: () => void; onClose: ()
           value={label}
           onChange={(e) => setLabel(e.target.value)}
           placeholder="My Gotify Server"
-          className="bg-white/5 border-white/10"
+          className="bg-white/5 border-border"
         />
       </div>
       {fields.map((f) => (
@@ -112,13 +112,13 @@ function AddChannelDialog({ onSave, onClose }: { onSave: () => void; onClose: ()
             value={config[f.key] ?? ''}
             onChange={(e) => setConfig((c) => ({ ...c, [f.key]: e.target.value }))}
             placeholder={f.placeholder}
-            className="bg-white/5 border-white/10"
+            className="bg-white/5 border-border"
           />
         </div>
       ))}
       <div className="flex gap-2 pt-2">
         <div className="flex-1" />
-        <Button variant="ghost" size="sm" onClick={onClose} className="text-white/50">Cancel</Button>
+        <Button variant="ghost" size="sm" onClick={onClose} className="text-muted-foreground">Cancel</Button>
         <Button size="sm" onClick={handleSave} disabled={saving} className="bg-blue-600 hover:bg-blue-700">
           {saving && <Loader2 className="h-3.5 w-3.5 animate-spin mr-1" />}
           Add Channel
@@ -182,7 +182,7 @@ export default function NotificationsPage() {
       <div className="flex items-center justify-between">
         <div>
           <h1 className="text-2xl font-bold">Notifications</h1>
-          <p className="text-sm text-white/40 mt-0.5">Configure where alerts are delivered</p>
+          <p className="text-sm text-muted-foreground mt-0.5">Configure where alerts are delivered</p>
         </div>
         <Button size="sm" className="bg-blue-600 hover:bg-blue-700 gap-1.5" onClick={() => setAddOpen(true)}>
           <Plus className="h-4 w-4" />
@@ -192,7 +192,7 @@ export default function NotificationsPage() {
 
       <div className="space-y-3">
         {channels.length === 0 && (
-          <div className="glass-card p-8 text-center text-white/30 text-sm">
+          <div className="glass-card p-8 text-center text-muted-foreground text-sm">
             No notification channels configured
           </div>
         )}
@@ -208,7 +208,7 @@ export default function NotificationsPage() {
             <Button
               variant="ghost"
               size="icon"
-              className="h-8 w-8 text-white/40 hover:text-green-400"
+              className="h-8 w-8 text-muted-foreground hover:text-green-400"
               onClick={() => sendTest(ch.id)}
               disabled={testingId === ch.id}
               title="Send test notification"
@@ -221,7 +221,7 @@ export default function NotificationsPage() {
             <Button
               variant="ghost"
               size="icon"
-              className="h-8 w-8 text-white/40 hover:text-red-400"
+              className="h-8 w-8 text-muted-foreground hover:text-red-400"
               onClick={() => deleteChannel(ch.id)}
             >
               <Trash2 className="h-3.5 w-3.5" />
@@ -231,7 +231,7 @@ export default function NotificationsPage() {
       </div>
 
       <Dialog open={addOpen} onOpenChange={setAddOpen}>
-        <DialogContent className="bg-zinc-900 border-white/10 max-h-[90vh] overflow-y-auto">
+        <DialogContent className="bg-zinc-900 border-border max-h-[90vh] overflow-y-auto">
           <DialogHeader>
             <DialogTitle>Add Notification Channel</DialogTitle>
           </DialogHeader>

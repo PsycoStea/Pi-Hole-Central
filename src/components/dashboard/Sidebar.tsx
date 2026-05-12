@@ -17,6 +17,7 @@ import {
 } from 'lucide-react'
 import { cn } from '@/lib/utils'
 import { Button } from '@/components/ui/button'
+import { ThemeToggle } from '@/components/theme-toggle'
 
 const navItems = [
   { href: '/', label: 'Overview', icon: LayoutDashboard },
@@ -32,16 +33,16 @@ export default function Sidebar({ user }: { user: string }) {
   const pathname = usePathname()
 
   return (
-    <aside className="w-64 h-full glass border-r border-white/10 flex flex-col shrink-0">
+    <aside className="w-64 h-full glass border-r border-border flex flex-col shrink-0">
       {/* Logo */}
-      <div className="p-6 border-b border-white/10">
+      <div className="p-6 border-b border-border">
         <div className="flex items-center gap-3">
           <div className="p-2 rounded-lg bg-blue-500/10 border border-blue-500/20">
             <ShieldCheck className="h-5 w-5 text-blue-400" />
           </div>
           <div>
             <p className="font-semibold text-sm">Pi-Hole Central</p>
-            <p className="text-xs text-white/40">Dashboard</p>
+            <p className="text-xs text-muted-foreground">Dashboard</p>
           </div>
         </div>
       </div>
@@ -58,8 +59,8 @@ export default function Sidebar({ user }: { user: string }) {
               className={cn(
                 'flex items-center gap-3 px-3 py-2.5 rounded-lg text-sm transition-all group',
                 active
-                  ? 'bg-blue-500/15 text-blue-300 border border-blue-500/20'
-                  : 'text-white/60 hover:text-white hover:bg-white/5'
+                  ? 'bg-blue-500/15 text-blue-400 border border-blue-500/20'
+                  : 'text-muted-foreground hover:text-foreground hover:bg-accent'
               )}
             >
               <Icon className="h-4 w-4 shrink-0" />
@@ -71,17 +72,18 @@ export default function Sidebar({ user }: { user: string }) {
       </nav>
 
       {/* User + logout */}
-      <div className="p-4 border-t border-white/10">
+      <div className="p-4 border-t border-border">
         <div className="flex items-center gap-3 mb-3 px-2">
-          <div className="h-7 w-7 rounded-full bg-gradient-to-br from-blue-400 to-purple-500 flex items-center justify-center text-xs font-bold uppercase">
+          <div className="h-7 w-7 rounded-full bg-gradient-to-br from-blue-400 to-purple-500 flex items-center justify-center text-xs font-bold uppercase text-white">
             {user[0]}
           </div>
-          <span className="text-sm text-white/70 flex-1 truncate">{user}</span>
+          <span className="text-sm text-foreground/70 flex-1 truncate">{user}</span>
+          <ThemeToggle />
         </div>
         <Button
           variant="ghost"
           size="sm"
-          className="w-full justify-start text-white/50 hover:text-white hover:bg-white/5 gap-2"
+          className="w-full justify-start text-muted-foreground hover:text-foreground hover:bg-accent gap-2"
           onClick={() => signOut({ callbackUrl: '/login' })}
         >
           <LogOut className="h-4 w-4" />

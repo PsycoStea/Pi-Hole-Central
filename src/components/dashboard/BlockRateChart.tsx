@@ -45,14 +45,14 @@ export default function BlockRateChart({ data, instanceNames }: BlockRateChartPr
   if (!chartData.length) {
     return (
       <div className="glass-card p-6 flex items-center justify-center h-48">
-        <p className="text-white/30 text-sm">No historical data yet — polling every 5 minutes</p>
+        <p className="text-muted-foreground text-sm">No historical data yet — polling every 5 minutes</p>
       </div>
     )
   }
 
   return (
     <div className="glass-card p-6">
-      <h3 className="text-sm font-medium text-white/70 mb-4">Block Rate Over Time</h3>
+      <h3 className="text-sm font-medium text-foreground/70 mb-4">Block Rate Over Time</h3>
       <ResponsiveContainer width="100%" height={260}>
         <LineChart data={chartData} margin={{ top: 5, right: 10, left: -20, bottom: 5 }}>
           <CartesianGrid strokeDasharray="3 3" stroke="rgba(255,255,255,0.05)" />

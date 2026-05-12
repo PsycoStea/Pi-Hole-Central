@@ -91,7 +91,7 @@ function InstanceForm({
           value={name}
           onChange={(e) => setName(e.target.value)}
           placeholder="Home Pi-Hole"
-          className="bg-white/5 border-white/10"
+          className="bg-white/5 border-border"
         />
       </div>
       <div className="space-y-2">
@@ -100,7 +100,7 @@ function InstanceForm({
           value={url}
           onChange={(e) => setUrl(e.target.value)}
           placeholder="http://192.168.1.100"
-          className="bg-white/5 border-white/10"
+          className="bg-white/5 border-border"
         />
       </div>
       <div className="space-y-2">
@@ -110,7 +110,7 @@ function InstanceForm({
           value={password}
           onChange={(e) => setPassword(e.target.value)}
           placeholder="••••••••"
-          className="bg-white/5 border-white/10"
+          className="bg-white/5 border-border"
         />
       </div>
 
@@ -127,13 +127,13 @@ function InstanceForm({
           size="sm"
           onClick={testConnection}
           disabled={testing}
-          className="border-white/10 text-white/70 gap-1.5"
+          className="border-border text-foreground/70 gap-1.5"
         >
           {testing && <Loader2 className="h-3.5 w-3.5 animate-spin" />}
           Test Connection
         </Button>
         <div className="flex-1" />
-        <Button variant="ghost" size="sm" onClick={onCancel} className="text-white/50">
+        <Button variant="ghost" size="sm" onClick={onCancel} className="text-muted-foreground">
           Cancel
         </Button>
         <Button size="sm" onClick={handleSave} disabled={saving} className="bg-blue-600 hover:bg-blue-700">
@@ -178,7 +178,7 @@ export default function InstancesSettingsPage() {
       <div className="flex items-center justify-between">
         <div>
           <h1 className="text-2xl font-bold">Instances</h1>
-          <p className="text-sm text-white/40 mt-0.5">Manage your Pi-Hole connections</p>
+          <p className="text-sm text-muted-foreground mt-0.5">Manage your Pi-Hole connections</p>
         </div>
         <Dialog open={addOpen} onOpenChange={setAddOpen}>
           <DialogTrigger render={
@@ -187,7 +187,7 @@ export default function InstancesSettingsPage() {
               Add Instance
             </Button>
           } />
-          <DialogContent className="bg-zinc-900 border-white/10">
+          <DialogContent className="bg-zinc-900 border-border">
             <DialogHeader>
               <DialogTitle>Add Pi-Hole Instance</DialogTitle>
             </DialogHeader>
@@ -201,7 +201,7 @@ export default function InstancesSettingsPage() {
 
       <div className="space-y-3">
         {instances.length === 0 && (
-          <div className="glass-card p-8 text-center text-white/30 text-sm">
+          <div className="glass-card p-8 text-center text-muted-foreground text-sm">
             No instances added yet
           </div>
         )}
@@ -217,9 +217,9 @@ export default function InstancesSettingsPage() {
               <div className="flex items-center gap-3">
                 <div className="flex-1 min-w-0">
                   <p className="font-medium text-sm">{inst.name}</p>
-                  <p className="text-xs text-white/40 truncate">{inst.url}</p>
+                  <p className="text-xs text-muted-foreground truncate">{inst.url}</p>
                 </div>
-                <Badge className={inst.enabled ? 'bg-green-500/10 text-green-400 border-green-500/20' : 'bg-white/5 text-white/30 border-white/10'}>
+                <Badge className={inst.enabled ? 'bg-green-500/10 text-green-400 border-green-500/20' : 'bg-white/5 text-muted-foreground border-border'}>
                   {inst.enabled ? 'Enabled' : 'Disabled'}
                 </Badge>
                 <Switch
@@ -230,7 +230,7 @@ export default function InstancesSettingsPage() {
                 <Button
                   variant="ghost"
                   size="icon"
-                  className="h-8 w-8 text-white/40 hover:text-white"
+                  className="h-8 w-8 text-muted-foreground hover:text-foreground"
                   onClick={() => setEditingId(inst.id)}
                 >
                   <Pencil className="h-3.5 w-3.5" />
@@ -238,7 +238,7 @@ export default function InstancesSettingsPage() {
                 <Button
                   variant="ghost"
                   size="icon"
-                  className="h-8 w-8 text-white/40 hover:text-red-400"
+                  className="h-8 w-8 text-muted-foreground hover:text-red-400"
                   onClick={() => deleteInstance(inst.id)}
                 >
                   <Trash2 className="h-3.5 w-3.5" />

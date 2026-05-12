@@ -43,13 +43,13 @@ export default function GeneralSettingsPage() {
     <div className="space-y-6">
       <div>
         <h1 className="text-2xl font-bold">General Settings</h1>
-        <p className="text-sm text-white/40 mt-0.5">Application-wide configuration</p>
+        <p className="text-sm text-muted-foreground mt-0.5">Application-wide configuration</p>
       </div>
 
       <div className="glass-card p-6 space-y-4">
         <div>
           <h2 className="text-sm font-semibold text-white">Data Retention</h2>
-          <p className="text-xs text-white/40 mt-0.5">
+          <p className="text-xs text-muted-foreground mt-0.5">
             How long to keep historical query snapshots. Older data is pruned automatically.
           </p>
         </div>
@@ -64,7 +64,7 @@ export default function GeneralSettingsPage() {
                 'px-4 py-2 rounded-lg text-sm font-medium border transition-colors',
                 retentionDays === opt.value
                   ? 'bg-blue-500/20 border-blue-500/50 text-blue-300'
-                  : 'bg-white/5 border-white/10 text-white/60 hover:text-white hover:bg-white/10',
+                  : 'bg-white/5 border-border text-foreground/60 hover:text-foreground hover:bg-white/10',
               ].join(' ')}
             >
               {opt.label}

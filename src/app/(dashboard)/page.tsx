@@ -147,7 +147,7 @@ export default function OverviewPage() {
   if (loading) {
     return (
       <div className="flex items-center justify-center h-64">
-        <div className="text-white/30 text-sm animate-pulse">Loading...</div>
+        <div className="text-muted-foreground text-sm animate-pulse">Loading...</div>
       </div>
     )
   }
@@ -159,7 +159,7 @@ export default function OverviewPage() {
       <div className="flex items-start justify-between gap-4">
         <div>
           <h1 className="text-2xl font-bold">Overview</h1>
-          <p className="text-sm text-white/40 mt-0.5">
+          <p className="text-sm text-muted-foreground mt-0.5">
             {agg ? `${agg.instancesOnline} of ${agg.instancesTotal} instances online` : 'No instances configured'}
           </p>
         </div>
@@ -232,7 +232,7 @@ export default function OverviewPage() {
       {/* Instance grid */}
       {summary && summary.instances.length > 0 ? (
         <div>
-          <h2 className="text-sm font-medium text-white/50 uppercase tracking-wider mb-3">
+          <h2 className="text-sm font-medium text-muted-foreground uppercase tracking-wider mb-3">
             Instances
           </h2>
           <div className="grid grid-cols-1 md:grid-cols-2 xl:grid-cols-3 gap-4">
@@ -243,9 +243,9 @@ export default function OverviewPage() {
         </div>
       ) : (
         <div className="glass-card p-12 text-center space-y-2">
-          <Server className="h-10 w-10 text-white/20 mx-auto" />
-          <p className="text-white/50">No instances configured</p>
-          <p className="text-sm text-white/30">
+          <Server className="h-10 w-10 text-muted-foreground/50 mx-auto" />
+          <p className="text-muted-foreground">No instances configured</p>
+          <p className="text-sm text-muted-foreground">
             Go to{' '}
             <a href="/settings/instances" className="text-blue-400 hover:underline">
               Settings → Instances
@@ -262,13 +262,13 @@ export default function OverviewPage() {
       {(topDomains.length > 0 || topClients.length > 0) && (
         <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
           <div className="glass-card p-4">
-            <h2 className="text-sm font-medium text-white/50 uppercase tracking-wider mb-3">
+            <h2 className="text-sm font-medium text-muted-foreground uppercase tracking-wider mb-3">
               Top Blocked Domains
             </h2>
             <TopDomainsTable domains={topDomains} />
           </div>
           <div className="glass-card p-4">
-            <h2 className="text-sm font-medium text-white/50 uppercase tracking-wider mb-3">
+            <h2 className="text-sm font-medium text-muted-foreground uppercase tracking-wider mb-3">
               Top Clients
             </h2>
             <TopClientsTable clients={topClients} />

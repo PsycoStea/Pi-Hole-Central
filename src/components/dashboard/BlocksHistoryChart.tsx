@@ -35,9 +35,9 @@ export default function BlocksHistoryChart({ data, label }: Props) {
     return (
       <div className="glass-card p-6">
         {label && (
-          <p className="text-xs font-medium text-white/40 uppercase tracking-wider mb-4">{label}</p>
+          <p className="text-xs font-medium text-muted-foreground uppercase tracking-wider mb-4">{label}</p>
         )}
-        <div className="h-[260px] flex items-center justify-center text-white/30 text-sm">
+        <div className="h-[260px] flex items-center justify-center text-muted-foreground text-sm">
           No data — check Pi-Hole connectivity
         </div>
       </div>
@@ -47,7 +47,7 @@ export default function BlocksHistoryChart({ data, label }: Props) {
   return (
     <div className="glass-card p-6">
       {label && (
-        <p className="text-xs font-medium text-white/40 uppercase tracking-wider mb-4">{label}</p>
+        <p className="text-xs font-medium text-muted-foreground uppercase tracking-wider mb-4">{label}</p>
       )}
       <ResponsiveContainer width="100%" height={260}>
         <LineChart data={data} margin={{ top: 4, right: 4, left: 0, bottom: 0 }}>

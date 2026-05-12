@@ -204,10 +204,10 @@ export default function DomainsPage() {
   return (
     <div className="space-y-6">
       <div className="flex items-center gap-3">
-        <FilterX className="h-6 w-6 text-white/50" />
+        <FilterX className="h-6 w-6 text-muted-foreground" />
         <div>
           <h1 className="text-2xl font-bold">Domains</h1>
-          <p className="text-sm text-white/40 mt-0.5">Manage allowlists and denylists</p>
+          <p className="text-sm text-muted-foreground mt-0.5">Manage allowlists and denylists</p>
         </div>
       </div>
 
@@ -216,11 +216,11 @@ export default function DomainsPage() {
         <div className="flex flex-wrap gap-3 items-end">
           {/* Instance selector */}
           <div className="flex flex-col gap-1">
-            <label className="text-xs text-white/50">Instance</label>
+            <label className="text-xs text-muted-foreground">Instance</label>
             <select
               value={selectedInstance}
               onChange={(e) => { setSelectedInstance(e.target.value); setShowAddForm(false) }}
-              className="bg-white/5 border border-white/10 rounded-md px-3 py-1.5 text-sm text-white focus:outline-none focus:ring-1 focus:ring-white/20"
+              className="bg-white/5 border border-border rounded-md px-3 py-1.5 text-sm text-white focus:outline-none focus:ring-1 focus:ring-white/20"
             >
               <option value="__all__" className="bg-gray-900">All Instances</option>
               {instances.map((inst) => (
@@ -231,7 +231,7 @@ export default function DomainsPage() {
 
           {/* Allow / Deny tabs */}
           <div className="flex flex-col gap-1">
-            <label className="text-xs text-white/50">List</label>
+            <label className="text-xs text-muted-foreground">List</label>
             <div className="flex gap-1">
               {(['allow', 'deny'] as ListType[]).map((t) => (
                 <button
@@ -241,7 +241,7 @@ export default function DomainsPage() {
                     'px-4 py-1.5 rounded-md text-sm font-medium transition-colors cursor-pointer capitalize',
                     activeTab === t
                       ? t === 'allow' ? 'bg-green-500/20 text-green-400' : 'bg-red-500/20 text-red-400'
-                      : 'bg-white/5 text-white/50 hover:bg-white/10'
+                      : 'bg-white/5 text-muted-foreground hover:bg-white/10'
                   )}
                 >
                   {t}list
@@ -252,7 +252,7 @@ export default function DomainsPage() {
 
           <div className="flex gap-2 ml-auto items-end pb-0.5">
             <Button size="sm" variant="outline" onClick={fetchDomains} disabled={loading}
-              className="border-white/10 text-white/70 hover:text-white gap-1.5">
+              className="border-border text-foreground/70 hover:text-foreground gap-1.5">
               <RefreshCw className={cn('h-3.5 w-3.5', loading && 'animate-spin')} />
               Refresh
             </Button>
@@ -267,28 +267,28 @@ export default function DomainsPage() {
       {/* Add Domain Form */}
       {showAddForm && (
         <div className="glass-card p-4 space-y-4">
-          <h3 className="text-sm font-medium text-white/70">
+          <h3 className="text-sm font-medium text-foreground/70">
             Add to {activeTab}list
           </h3>
 
           <div className="flex flex-wrap gap-3 items-start">
             {/* Domain */}
             <div className="flex flex-col gap-1">
-              <label className="text-xs text-white/50">Domain *</label>
+              <label className="text-xs text-muted-foreground">Domain *</label>
               <input
                 type="text"
                 value={newDomain}
                 onChange={(e) => setNewDomain(e.target.value)}
                 onKeyDown={(e) => e.key === 'Enter' && handleAdd()}
                 placeholder="e.g. ads.example.com"
-                className="bg-white/5 border border-white/10 rounded-md px-3 py-1.5 text-sm text-white placeholder:text-white/20 focus:outline-none focus:ring-1 focus:ring-white/20 w-56"
+                className="bg-white/5 border border-border rounded-md px-3 py-1.5 text-sm text-white placeholder:text-muted-foreground/40 focus:outline-none focus:ring-1 focus:ring-white/20 w-56"
                 autoFocus
               />
             </div>
 
             {/* Kind */}
             <div className="flex flex-col gap-1">
-              <label className="text-xs text-white/50">Type</label>
+              <label className="text-xs text-muted-foreground">Type</label>
               <div className="flex gap-1">
                 {(['exact', 'regex'] as const).map((k) => (
                   <button
@@ -296,7 +296,7 @@ export default function DomainsPage() {
                     onClick={() => setNewKind(k)}
                     className={cn(
                       'px-3 py-1.5 rounded-md text-sm capitalize transition-colors cursor-pointer',
-                      newKind === k ? 'bg-white/15 text-white' : 'bg-white/5 text-white/50 hover:bg-white/10'
+                      newKind === k ? 'bg-white/15 text-white' : 'bg-white/5 text-muted-foreground hover:bg-white/10'
                     )}
                   >
                     {k}
@@ -307,19 +307,19 @@ export default function DomainsPage() {
 
             {/* Comment */}
             <div className="flex flex-col gap-1">
-              <label className="text-xs text-white/50">Comment</label>
+              <label className="text-xs text-muted-foreground">Comment</label>
               <input
                 type="text"
                 value={newComment}
                 onChange={(e) => setNewComment(e.target.value)}
                 placeholder="Optional note"
-                className="bg-white/5 border border-white/10 rounded-md px-3 py-1.5 text-sm text-white placeholder:text-white/20 focus:outline-none focus:ring-1 focus:ring-white/20 w-44"
+                className="bg-white/5 border border-border rounded-md px-3 py-1.5 text-sm text-white placeholder:text-muted-foreground/40 focus:outline-none focus:ring-1 focus:ring-white/20 w-44"
               />
             </div>
 
             {/* Enabled */}
             <div className="flex flex-col gap-1">
-              <label className="text-xs text-white/50">Enabled</label>
+              <label className="text-xs text-muted-foreground">Enabled</label>
               <div className="flex items-center h-[34px]">
                 <Switch checked={newEnabled} onCheckedChange={setNewEnabled} />
               </div>
@@ -328,7 +328,7 @@ export default function DomainsPage() {
             {/* Groups */}
             {showGroupSelector && (
               <div className="flex flex-col gap-1">
-                <label className="text-xs text-white/50">Groups</label>
+                <label className="text-xs text-muted-foreground">Groups</label>
                 <div className="flex flex-wrap gap-1">
                   {groups.map((g) => (
                     <button
@@ -338,7 +338,7 @@ export default function DomainsPage() {
                         'px-2.5 py-1 rounded text-xs transition-colors cursor-pointer',
                         newGroups.includes(g.id)
                           ? 'bg-blue-500/20 text-blue-300'
-                          : 'bg-white/5 text-white/40 hover:bg-white/10'
+                          : 'bg-white/5 text-muted-foreground hover:bg-white/10'
                       )}
                     >
                       {g.name}
@@ -352,7 +352,7 @@ export default function DomainsPage() {
           {/* Instance checkboxes (All view only) */}
           {isAllInstances && (
             <div className="flex flex-col gap-1.5">
-              <label className="text-xs text-white/50">Add to instances</label>
+              <label className="text-xs text-muted-foreground">Add to instances</label>
               <div className="flex flex-wrap gap-2">
                 <button
                   onClick={() =>
@@ -360,7 +360,7 @@ export default function DomainsPage() {
                       targetInstances.length === instances.length ? [] : instances.map((i) => i.id)
                     )
                   }
-                  className="px-2.5 py-1 rounded text-xs bg-white/10 text-white/60 hover:bg-white/15 cursor-pointer transition-colors"
+                  className="px-2.5 py-1 rounded text-xs bg-white/10 text-foreground/60 hover:bg-white/15 cursor-pointer transition-colors"
                 >
                   {targetInstances.length === instances.length ? 'Deselect All' : 'Select All'}
                 </button>
@@ -372,7 +372,7 @@ export default function DomainsPage() {
                       'px-2.5 py-1 rounded text-xs transition-colors cursor-pointer',
                       targetInstances.includes(inst.id)
                         ? 'bg-blue-500/20 text-blue-300'
-                        : 'bg-white/5 text-white/40 hover:bg-white/10'
+                        : 'bg-white/5 text-muted-foreground hover:bg-white/10'
                     )}
                   >
                     {inst.name}
@@ -387,7 +387,7 @@ export default function DomainsPage() {
               {adding ? 'Adding...' : 'Add'}
             </Button>
             <Button size="sm" variant="ghost" onClick={() => setShowAddForm(false)}
-              className="text-white/50 hover:text-white">
+              className="text-muted-foreground hover:text-foreground">
               Cancel
             </Button>
           </div>
@@ -397,24 +397,24 @@ export default function DomainsPage() {
       {/* Domain table */}
       <div className="glass-card overflow-hidden">
         {loading ? (
-          <div className="p-8 text-center text-white/30 text-sm animate-pulse">Loading domains...</div>
+          <div className="p-8 text-center text-muted-foreground text-sm animate-pulse">Loading domains...</div>
         ) : domains.length === 0 ? (
-          <div className="p-8 text-center text-white/30 text-sm">
+          <div className="p-8 text-center text-muted-foreground text-sm">
             No domains in {activeTab}list
           </div>
         ) : (
           <div className="overflow-x-auto">
             <table className="w-full text-sm">
               <thead>
-                <tr className="border-b border-white/5">
+                <tr className="border-b border-border">
                   {isAllInstances && (
-                    <th className="text-left px-4 py-3 text-white/40 font-medium whitespace-nowrap">Instance</th>
+                    <th className="text-left px-4 py-3 text-muted-foreground font-medium whitespace-nowrap">Instance</th>
                   )}
-                  <th className="text-left px-4 py-3 text-white/40 font-medium">Domain</th>
-                  <th className="text-left px-4 py-3 text-white/40 font-medium whitespace-nowrap">Type</th>
-                  <th className="text-left px-4 py-3 text-white/40 font-medium">Comment</th>
-                  <th className="text-left px-4 py-3 text-white/40 font-medium whitespace-nowrap">Status</th>
-                  <th className="text-left px-4 py-3 text-white/40 font-medium">Groups</th>
+                  <th className="text-left px-4 py-3 text-muted-foreground font-medium">Domain</th>
+                  <th className="text-left px-4 py-3 text-muted-foreground font-medium whitespace-nowrap">Type</th>
+                  <th className="text-left px-4 py-3 text-muted-foreground font-medium">Comment</th>
+                  <th className="text-left px-4 py-3 text-muted-foreground font-medium whitespace-nowrap">Status</th>
+                  <th className="text-left px-4 py-3 text-muted-foreground font-medium">Groups</th>
                   <th className="px-4 py-3" />
                 </tr>
               </thead>
@@ -422,11 +422,11 @@ export default function DomainsPage() {
                 {domains.map((d, i) => (
                   <tr
                     key={`${d.id}-${d.instanceId ?? ''}-${i}`}
-                    className="border-b border-white/5 hover:bg-white/3 transition-colors"
+                    className="border-b border-border hover:bg-white/3 transition-colors"
                   >
                     {isAllInstances && (
                       <td className="px-4 py-2.5">
-                        <span className="inline-block px-2 py-0.5 rounded text-xs bg-white/8 text-white/60 whitespace-nowrap">
+                        <span className="inline-block px-2 py-0.5 rounded text-xs bg-white/8 text-foreground/60 whitespace-nowrap">
                           {d.instanceName ?? d.instanceId ?? '—'}
                         </span>
                       </td>
@@ -437,18 +437,18 @@ export default function DomainsPage() {
                         'inline-block px-2 py-0.5 rounded text-xs font-medium',
                         d.kind === 'regex'
                           ? 'bg-purple-500/15 text-purple-400'
-                          : 'bg-white/8 text-white/50'
+                          : 'bg-white/8 text-muted-foreground'
                       )}>
                         {d.kind}
                       </span>
                     </td>
-                    <td className="px-4 py-2.5 text-white/40 text-xs max-w-[12rem] truncate">
+                    <td className="px-4 py-2.5 text-muted-foreground text-xs max-w-[12rem] truncate">
                       {d.comment || '—'}
                     </td>
                     <td className="px-4 py-2.5">
                       <span className={cn(
                         'inline-flex items-center gap-1.5 text-xs',
-                        d.enabled ? 'text-green-400' : 'text-white/30'
+                        d.enabled ? 'text-green-400' : 'text-muted-foreground'
                       )}>
                         <span className={cn(
                           'h-1.5 w-1.5 rounded-full',
@@ -457,13 +457,13 @@ export default function DomainsPage() {
                         {d.enabled ? 'enabled' : 'disabled'}
                       </span>
                     </td>
-                    <td className="px-4 py-2.5 text-white/40 text-xs">
+                    <td className="px-4 py-2.5 text-muted-foreground text-xs">
                       {d.groups?.join(', ') ?? '—'}
                     </td>
                     <td className="px-4 py-2.5 text-right">
                       <button
                         onClick={() => handleDelete(d)}
-                        className="p-1 rounded text-white/30 hover:text-red-400 hover:bg-red-500/10 transition-colors cursor-pointer"
+                        className="p-1 rounded text-muted-foreground hover:text-red-400 hover:bg-red-500/10 transition-colors cursor-pointer"
                       >
                         <Trash2 className="h-3.5 w-3.5" />
                       </button>

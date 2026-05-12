@@ -22,34 +22,34 @@ export default function TopClientsTable({
   instanceId?: string
 }) {
   if (!clients.length) {
-    return <p className="text-white/30 text-sm text-center py-8">No data</p>
+    return <p className="text-muted-foreground text-sm text-center py-8">No data</p>
   }
   const max = Math.max(...clients.map((c) => c.count))
   return (
     <Table>
       <TableHeader>
-        <TableRow className="border-white/10 hover:bg-transparent">
-          <TableHead className="text-white/50">Client</TableHead>
-          <TableHead className="text-white/50 text-right w-24">Queries</TableHead>
+        <TableRow className="border-border hover:bg-transparent">
+          <TableHead className="text-muted-foreground">Client</TableHead>
+          <TableHead className="text-muted-foreground text-right w-24">Queries</TableHead>
         </TableRow>
       </TableHeader>
       <TableBody>
         {clients.map((c) => (
-          <TableRow key={c.ip} className="border-white/5 hover:bg-white/5">
+          <TableRow key={c.ip} className="border-border hover:bg-accent">
             <TableCell className="font-mono text-xs">
               <div className="space-y-1">
                 {instanceId ? (
                   <Link
                     href={`/queries?instance=${instanceId}&client=${c.ip}`}
-                    className="text-white/90 hover:text-blue-400 transition-colors cursor-pointer"
+                    className="text-foreground/90 hover:text-blue-400 transition-colors cursor-pointer"
                   >
                     {c.name || c.ip}
                   </Link>
                 ) : (
-                  <p className="text-white/90">{c.name || c.ip}</p>
+                  <p className="text-foreground/90">{c.name || c.ip}</p>
                 )}
                 {c.name && c.name !== c.ip && (
-                  <p className="text-white/30 text-xs">{c.ip}</p>
+                  <p className="text-muted-foreground text-xs">{c.ip}</p>
                 )}
                 <div className="h-1 rounded-full bg-white/5 overflow-hidden">
                   <div
@@ -59,7 +59,7 @@ export default function TopClientsTable({
                 </div>
               </div>
             </TableCell>
-            <TableCell className="text-right text-white/60 text-xs">{c.count.toLocaleString()}</TableCell>
+            <TableCell className="text-right text-foreground/60 text-xs">{c.count.toLocaleString()}</TableCell>
           </TableRow>
         ))}
       </TableBody>

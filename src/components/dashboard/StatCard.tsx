@@ -28,14 +28,14 @@ export default function StatCard({
   return (
     <div className={cn('glass-card p-5 space-y-3', className)}>
       <div className="flex items-center justify-between">
-        <p className="text-sm text-white/50 font-medium">{title}</p>
+        <p className="text-sm text-muted-foreground font-medium">{title}</p>
         <div className={cn('p-2 rounded-lg border', colors[color])}>
           <Icon className="h-4 w-4" />
         </div>
       </div>
       <div>
         <p className="text-2xl font-bold tracking-tight">{value}</p>
-        {subtitle && <p className="text-xs text-white/40 mt-0.5">{subtitle}</p>}
+        {subtitle && <p className="text-xs text-muted-foreground mt-0.5">{subtitle}</p>}
       </div>
     </div>
   )

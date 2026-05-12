@@ -47,7 +47,7 @@ export default function LoginPage() {
               </div>
             </div>
             <h1 className="text-2xl font-bold tracking-tight">Pi-Hole Central</h1>
-            <p className="text-sm text-white/50">Sign in to your dashboard</p>
+            <p className="text-sm text-muted-foreground">Sign in to your dashboard</p>
           </div>
 
           <form onSubmit={handleSubmit} className="space-y-4">
@@ -60,7 +60,7 @@ export default function LoginPage() {
                 onChange={(e) => setUsername(e.target.value)}
                 placeholder="admin"
                 required
-                className="bg-white/5 border-white/10"
+                className="bg-white/5 border-border"
               />
             </div>
             <div className="space-y-2">
@@ -72,7 +72,7 @@ export default function LoginPage() {
                 onChange={(e) => setPassword(e.target.value)}
                 placeholder="••••••••"
                 required
-                className="bg-white/5 border-white/10"
+                className="bg-white/5 border-border"
               />
             </div>
             {error && (

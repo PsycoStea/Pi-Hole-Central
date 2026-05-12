@@ -91,7 +91,7 @@ export default function AlertsPage() {
     <div className="space-y-6 max-w-2xl">
       <div>
         <h1 className="text-2xl font-bold">Alerts</h1>
-        <p className="text-sm text-white/40 mt-0.5">Configure conditions and delivery for notifications</p>
+        <p className="text-sm text-muted-foreground mt-0.5">Configure conditions and delivery for notifications</p>
       </div>
 
       {channels.length === 0 && (
@@ -112,7 +112,7 @@ export default function AlertsPage() {
               <div className="flex items-start justify-between gap-4">
                 <div>
                   <p className="font-medium text-sm">{meta.title}</p>
-                  <p className="text-xs text-white/40 mt-0.5">{meta.description}</p>
+                  <p className="text-xs text-muted-foreground mt-0.5">{meta.description}</p>
                 </div>
                 <Switch
                   checked={alert.enabled}
@@ -123,22 +123,22 @@ export default function AlertsPage() {
 
               {alert.type === 'block_rate_low' && alert.enabled && (
                 <div className="flex items-center gap-3">
-                  <Label className="text-xs text-white/50 whitespace-nowrap">Threshold (%)</Label>
+                  <Label className="text-xs text-muted-foreground whitespace-nowrap">Threshold (%)</Label>
                   <Input
                     type="number"
                     min={0}
                     max={100}
                     value={alert.threshold ?? 5}
                     onChange={(e) => updateAlert(alert, { threshold: parseFloat(e.target.value) })}
-                    className="w-24 bg-white/5 border-white/10 h-8 text-sm"
+                    className="w-24 bg-white/5 border-border h-8 text-sm"
                   />
-                  <span className="text-xs text-white/30">Alert when block rate drops below this value</span>
+                  <span className="text-xs text-muted-foreground">Alert when block rate drops below this value</span>
                 </div>
               )}
 
               {alert.enabled && channels.length > 0 && (
                 <div>
-                  <p className="text-xs text-white/40 mb-2">Deliver via:</p>
+                  <p className="text-xs text-muted-foreground mb-2">Deliver via:</p>
                   <div className="flex flex-wrap gap-2">
                     {channels.map((ch) => {
                       const active = channelIds.includes(ch.id)
@@ -151,7 +151,7 @@ export default function AlertsPage() {
                           className={`text-xs h-7 border transition-all ${
                             active
                               ? 'bg-blue-500/15 border-blue-500/30 text-blue-300'
-                              : 'bg-white/5 border-white/10 text-white/40 hover:text-white'
+                              : 'bg-white/5 border-border text-muted-foreground hover:text-foreground'
                           }`}
                         >
                           {ch.label}

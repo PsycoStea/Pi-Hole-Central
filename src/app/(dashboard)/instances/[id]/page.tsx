@@ -128,7 +128,7 @@ export default function InstanceDetailPage({
     <div className="space-y-6">
       <div className="flex items-center gap-3">
         <Link href="/">
-          <Button variant="ghost" size="icon" className="h-8 w-8 text-white/50 hover:text-white">
+          <Button variant="ghost" size="icon" className="h-8 w-8 text-muted-foreground hover:text-foreground">
             <ArrowLeft className="h-4 w-4" />
           </Button>
         </Link>
@@ -145,12 +145,12 @@ export default function InstanceDetailPage({
               </Badge>
             )}
           </div>
-          {instance && <p className="text-sm text-white/40">{instance.url}</p>}
+          {instance && <p className="text-sm text-muted-foreground">{instance.url}</p>}
         </div>
         {isOnline && (
           <div className="flex items-center gap-3">
             <div className="flex items-center gap-2">
-              <span className="text-xs text-white/50">Blocking</span>
+              <span className="text-xs text-muted-foreground">Blocking</span>
               <Switch
                 checked={blockingEnabled}
                 onCheckedChange={toggleBlocking}
@@ -162,7 +162,7 @@ export default function InstanceDetailPage({
               size="sm"
               onClick={triggerGravity}
               disabled={updatingGravity}
-              className="border-white/10 text-white/70 hover:text-white text-xs gap-1.5"
+              className="border-border text-foreground/70 hover:text-foreground text-xs gap-1.5"
             >
               <RefreshCw className={cn('h-3.5 w-3.5', updatingGravity && 'animate-spin')} />
               Update Gravity
@@ -181,14 +181,14 @@ export default function InstanceDetailPage({
           ].map(({ label, value }) => (
             <div key={label} className="glass-card p-4 text-center">
               <p className="text-2xl font-bold">{value}</p>
-              <p className="text-xs text-white/40 mt-1">{label}</p>
+              <p className="text-xs text-muted-foreground mt-1">{label}</p>
             </div>
           ))}
         </div>
       )}
 
       <Tabs defaultValue="overview">
-        <TabsList className="bg-white/5 border border-white/10">
+        <TabsList className="bg-white/5 border border-border">
           <TabsTrigger value="overview">Overview</TabsTrigger>
           <TabsTrigger value="domains">Top Domains</TabsTrigger>
           <TabsTrigger value="clients">Top Clients</TabsTrigger>
@@ -266,7 +266,7 @@ export default function InstanceDetailPage({
               />
             </div>
           ) : (
-            <div className="glass-card p-8 text-center text-white/30 text-sm">
+            <div className="glass-card p-8 text-center text-muted-foreground text-sm">
               {isOnline ? 'Loading system info...' : 'Instance is offline'}
             </div>
           )}

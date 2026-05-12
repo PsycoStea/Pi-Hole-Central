@@ -185,10 +185,10 @@ function QueryLogContent() {
   return (
     <div className="space-y-6">
       <div className="flex items-center gap-3">
-        <ScrollText className="h-6 w-6 text-white/50" />
+        <ScrollText className="h-6 w-6 text-muted-foreground" />
         <div>
           <h1 className="text-2xl font-bold">Query Log</h1>
-          <p className="text-sm text-white/40 mt-0.5">DNS queries from your Pi-Hole instances</p>
+          <p className="text-sm text-muted-foreground mt-0.5">DNS queries from your Pi-Hole instances</p>
         </div>
       </div>
 
@@ -197,7 +197,7 @@ function QueryLogContent() {
         <div className="flex flex-wrap gap-3 items-end">
           {/* Instance selector */}
           <div className="flex flex-col gap-1">
-            <label className="text-xs text-white/50">Instance</label>
+            <label className="text-xs text-muted-foreground">Instance</label>
             <select
               value={selectedInstance}
               onChange={(e) => {
@@ -206,7 +206,7 @@ function QueryLogContent() {
                 setNextCursor(null)
                 setOldestTimestamp(null)
               }}
-              className="bg-white/5 border border-white/10 rounded-md px-3 py-1.5 text-sm text-white focus:outline-none focus:ring-1 focus:ring-white/20"
+              className="bg-white/5 border border-border rounded-md px-3 py-1.5 text-sm text-white focus:outline-none focus:ring-1 focus:ring-white/20"
             >
               <option value="__all__" className="bg-gray-900">All Instances</option>
               {instances.map((inst) => (
@@ -217,27 +217,27 @@ function QueryLogContent() {
 
           {/* Domain filter */}
           <div className="flex flex-col gap-1">
-            <label className="text-xs text-white/50">Domain (substring)</label>
+            <label className="text-xs text-muted-foreground">Domain (substring)</label>
             <input
               type="text"
               value={domainInput}
               onChange={(e) => setDomainInput(e.target.value)}
               onKeyDown={(e) => e.key === 'Enter' && handleRefresh()}
               placeholder="e.g. google"
-              className="bg-white/5 border border-white/10 rounded-md px-3 py-1.5 text-sm text-white placeholder:text-white/20 focus:outline-none focus:ring-1 focus:ring-white/20 w-44"
+              className="bg-white/5 border border-border rounded-md px-3 py-1.5 text-sm text-white placeholder:text-muted-foreground/40 focus:outline-none focus:ring-1 focus:ring-white/20 w-44"
             />
           </div>
 
           {/* Client filter */}
           <div className="flex flex-col gap-1">
-            <label className="text-xs text-white/50">Client IP (exact) / hostname</label>
+            <label className="text-xs text-muted-foreground">Client IP (exact) / hostname</label>
             <input
               type="text"
               value={clientInput}
               onChange={(e) => setClientInput(e.target.value)}
               onKeyDown={(e) => e.key === 'Enter' && handleRefresh()}
               placeholder="e.g. 192.168.1.10"
-              className="bg-white/5 border border-white/10 rounded-md px-3 py-1.5 text-sm text-white placeholder:text-white/20 focus:outline-none focus:ring-1 focus:ring-white/20 w-48"
+              className="bg-white/5 border border-border rounded-md px-3 py-1.5 text-sm text-white placeholder:text-muted-foreground/40 focus:outline-none focus:ring-1 focus:ring-white/20 w-48"
             />
           </div>
 
@@ -248,7 +248,7 @@ function QueryLogContent() {
 
         {/* Status filter */}
         <div className="flex items-center gap-2">
-          <span className="text-xs text-white/40">Filter:</span>
+          <span className="text-xs text-muted-foreground">Filter:</span>
           <div className="flex gap-1">
             {STATUS_FILTERS.map((f) => (
               <button
@@ -257,7 +257,7 @@ function QueryLogContent() {
                 className={`px-3 py-1 rounded-md text-xs font-medium transition-colors cursor-pointer ${
                   statusFilter === f.value
                     ? f.color
-                    : 'bg-white/5 text-white/40 hover:bg-white/10'
+                    : 'bg-white/5 text-muted-foreground hover:bg-white/10'
                 }`}
               >
                 {f.label}
@@ -265,7 +265,7 @@ function QueryLogContent() {
             ))}
           </div>
           {queries.length > 0 && (
-            <span className="text-xs text-white/30 ml-2">
+            <span className="text-xs text-muted-foreground ml-2">
               {visibleQueries.length} of {queries.length} queries
             </span>
           )}
@@ -275,9 +275,9 @@ function QueryLogContent() {
       {/* Table */}
       <div className="glass-card overflow-hidden">
         {loading ? (
-          <div className="p-8 text-center text-white/30 text-sm animate-pulse">Loading queries...</div>
+          <div className="p-8 text-center text-muted-foreground text-sm animate-pulse">Loading queries...</div>
         ) : visibleQueries.length === 0 ? (
-          <div className="p-8 text-center text-white/30 text-sm">
+          <div className="p-8 text-center text-muted-foreground text-sm">
             {queries.length > 0 ? 'No queries match the selected filter' : 'No queries found'}
           </div>
         ) : (
@@ -285,45 +285,45 @@ function QueryLogContent() {
             <div className="overflow-x-auto">
               <table className="w-full text-sm">
                 <thead>
-                  <tr className="border-b border-white/5">
-                    <th className="text-left px-4 py-3 text-white/40 font-medium whitespace-nowrap">Time</th>
+                  <tr className="border-b border-border">
+                    <th className="text-left px-4 py-3 text-muted-foreground font-medium whitespace-nowrap">Time</th>
                     {isAllInstances && (
-                      <th className="text-left px-4 py-3 text-white/40 font-medium whitespace-nowrap">Instance</th>
+                      <th className="text-left px-4 py-3 text-muted-foreground font-medium whitespace-nowrap">Instance</th>
                     )}
-                    <th className="text-left px-4 py-3 text-white/40 font-medium">Domain</th>
-                    <th className="text-left px-4 py-3 text-white/40 font-medium whitespace-nowrap">Client</th>
-                    <th className="text-left px-4 py-3 text-white/40 font-medium">Type</th>
-                    <th className="text-left px-4 py-3 text-white/40 font-medium">Status</th>
-                    <th className="text-left px-4 py-3 text-white/40 font-medium">Upstream</th>
+                    <th className="text-left px-4 py-3 text-muted-foreground font-medium">Domain</th>
+                    <th className="text-left px-4 py-3 text-muted-foreground font-medium whitespace-nowrap">Client</th>
+                    <th className="text-left px-4 py-3 text-muted-foreground font-medium">Type</th>
+                    <th className="text-left px-4 py-3 text-muted-foreground font-medium">Status</th>
+                    <th className="text-left px-4 py-3 text-muted-foreground font-medium">Upstream</th>
                   </tr>
                 </thead>
                 <tbody>
                   {visibleQueries.map((q, i) => (
-                    <tr key={`${q.id}-${q.instanceId ?? ''}-${i}`} className="border-b border-white/5 hover:bg-white/3 transition-colors">
-                      <td className="px-4 py-2.5 text-white/50 font-mono text-xs whitespace-nowrap">{formatTime(q.time)}</td>
+                    <tr key={`${q.id}-${q.instanceId ?? ''}-${i}`} className="border-b border-border hover:bg-white/3 transition-colors">
+                      <td className="px-4 py-2.5 text-muted-foreground font-mono text-xs whitespace-nowrap">{formatTime(q.time)}</td>
                       {isAllInstances && (
                         <td className="px-4 py-2.5">
-                          <span className="inline-block px-2 py-0.5 rounded text-xs bg-white/8 text-white/60 whitespace-nowrap">
+                          <span className="inline-block px-2 py-0.5 rounded text-xs bg-white/8 text-foreground/60 whitespace-nowrap">
                             {q.instanceName ?? q.instanceId ?? '—'}
                           </span>
                         </td>
                       )}
                       <td className="px-4 py-2.5 text-white max-w-xs truncate">{q.domain}</td>
-                      <td className="px-4 py-2.5 text-white/70 font-mono text-xs whitespace-nowrap">
+                      <td className="px-4 py-2.5 text-foreground/70 font-mono text-xs whitespace-nowrap">
                         {q.client.name || q.client.ip}
                       </td>
-                      <td className="px-4 py-2.5 text-white/50">{q.type}</td>
+                      <td className="px-4 py-2.5 text-muted-foreground">{q.type}</td>
                       <td className="px-4 py-2.5">
                         <StatusBadge status={q.status} />
                       </td>
-                      <td className="px-4 py-2.5 text-white/40 text-xs truncate max-w-[10rem]">{q.upstream ?? '—'}</td>
+                      <td className="px-4 py-2.5 text-muted-foreground text-xs truncate max-w-[10rem]">{q.upstream ?? '—'}</td>
                     </tr>
                   ))}
                 </tbody>
               </table>
             </div>
             {hasMore && (
-              <div className="p-4 text-center border-t border-white/5">
+              <div className="p-4 text-center border-t border-border">
                 <Button
                   size="sm"
                   variant="outline"
@@ -343,7 +343,7 @@ function QueryLogContent() {
 
 export default function QueriesPage() {
   return (
-    <Suspense fallback={<div className="p-8 text-center text-white/30 text-sm">Loading...</div>}>
+    <Suspense fallback={<div className="p-8 text-center text-muted-foreground text-sm">Loading...</div>}>
       <QueryLogContent />
     </Suspense>
   )

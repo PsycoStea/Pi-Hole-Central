@@ -73,7 +73,7 @@ export default function InstanceCard({ instance, onUpdate }: {
           >
             {instance.name}
           </Link>
-          <p className="text-xs text-white/40 truncate">{instance.url}</p>
+          <p className="text-xs text-muted-foreground truncate">{instance.url}</p>
         </div>
         <Badge
           className={cn(
@@ -91,24 +91,24 @@ export default function InstanceCard({ instance, onUpdate }: {
         <div className="grid grid-cols-3 gap-3">
           <div className="text-center">
             <p className="text-lg font-bold">{instance.summary.queries.total.toLocaleString()}</p>
-            <p className="text-xs text-white/40">Queries</p>
+            <p className="text-xs text-muted-foreground">Queries</p>
           </div>
           <div className="text-center">
             <p className="text-lg font-bold text-red-400">{instance.summary.queries.blocked.toLocaleString()}</p>
-            <p className="text-xs text-white/40">Blocked</p>
+            <p className="text-xs text-muted-foreground">Blocked</p>
           </div>
           <div className="text-center">
             <p className="text-lg font-bold text-green-400">{instance.summary.queries.percent_blocked.toFixed(1)}%</p>
-            <p className="text-xs text-white/40">Block %</p>
+            <p className="text-xs text-muted-foreground">Block %</p>
           </div>
         </div>
       )}
 
       {!isOnline && (
-        <p className="text-sm text-white/30 text-center py-2">Instance unreachable</p>
+        <p className="text-sm text-muted-foreground text-center py-2">Instance unreachable</p>
       )}
 
-      <div className="flex items-center justify-between pt-1 border-t border-white/5">
+      <div className="flex items-center justify-between pt-1 border-t border-border">
         <div className="flex items-center gap-2">
           <Switch
             checked={blockingEnabled}
@@ -116,13 +116,13 @@ export default function InstanceCard({ instance, onUpdate }: {
             disabled={!isOnline || togglingBlocking}
             className="scale-90"
           />
-          <span className="text-xs text-white/50">Blocking</span>
+          <span className="text-xs text-muted-foreground">Blocking</span>
         </div>
         <div className="flex items-center gap-1">
           <Button
             variant="ghost"
             size="icon"
-            className="h-7 w-7 text-white/40 hover:text-white"
+            className="h-7 w-7 text-muted-foreground hover:text-foreground"
             onClick={triggerGravity}
             disabled={!isOnline || updatingGravity}
             title="Update gravity"
@@ -133,7 +133,7 @@ export default function InstanceCard({ instance, onUpdate }: {
             <Button
               variant="ghost"
               size="icon"
-              className="h-7 w-7 text-white/40 hover:text-white"
+              className="h-7 w-7 text-muted-foreground hover:text-foreground"
               title="View details"
             >
               <ExternalLink className="h-3.5 w-3.5" />
