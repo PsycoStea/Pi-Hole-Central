@@ -1,6 +1,6 @@
 'use client'
 
-import { useEffect, useState, useCallback, Suspense } from 'react'
+import { useEffect, useState, useCallback, useRef, Suspense } from 'react'
 import { useSearchParams } from 'next/navigation'
 import { Button } from '@/components/ui/button'
 import { ScrollText } from 'lucide-react'
@@ -16,10 +16,17 @@ interface PiHoleQuery {
   upstream: string | null
 }
 
+interface QueryRow extends PiHoleQuery {
+  instanceId?: string
+  instanceName?: string
+}
+
 interface Instance {
   id: string
   name: string
 }
+
+type StatusCategory = 'all' | 'blocked' | 'cached' | 'forwarded'
 
 const TIME_RANGES = [
   { label: 'Last 1h', hours: 1 },
@@ -27,77 +34,167 @@ const TIME_RANGES = [
   { label: 'Last 24h', hours: 24 },
 ]
 
+const STATUS_FILTERS: { label: string; value: StatusCategory; color: string }[] = [
+  { label: 'All', value: 'all', color: 'bg-white/15 text-white' },
+  { label: 'Blocked', value: 'blocked', color: 'bg-red-500/20 text-red-400' },
+  { label: 'Cached', value: 'cached', color: 'bg-blue-500/20 text-blue-400' },
+  { label: 'Forwarded', value: 'forwarded', color: 'bg-green-500/20 text-green-400' },
+]
+
 function formatTime(unix: number) {
   return new Date(unix * 1000).toLocaleTimeString([], { hour: '2-digit', minute: '2-digit', second: '2-digit' })
 }
 
+function classifyStatus(status: string): 'blocked' | 'cached' | 'forwarded' {
+  const s = status.toLowerCase()
+  if (s.includes('block') || s === 'gravity' || s === 'blacklist') return 'blocked'
+  if (s.includes('cache')) return 'cached'
+  return 'forwarded'
+}
+
+function StatusBadge({ status }: { status: string }) {
+  const cat = classifyStatus(status)
+  return (
+    <span className={`inline-block px-2 py-0.5 rounded text-xs font-medium ${
+      cat === 'blocked' ? 'bg-red-500/15 text-red-400' :
+      cat === 'cached'  ? 'bg-blue-500/15 text-blue-400' :
+                          'bg-green-500/15 text-green-400'
+    }`}>
+      {status}
+    </span>
+  )
+}
+
 function QueryLogContent() {
   const searchParams = useSearchParams()
+
   const [instances, setInstances] = useState<Instance[]>([])
   const [selectedInstance, setSelectedInstance] = useState<string>('')
   const [hours, setHours] = useState(1)
-  const [domainFilter, setDomainFilter] = useState('')
-  const [clientFilter, setClientFilter] = useState(searchParams.get('client') ?? '')
-  const [queries, setQueries] = useState<PiHoleQuery[]>([])
+
+  // Input state (not committed until Search)
+  const [domainInput, setDomainInput] = useState('')
+  const [clientInput, setClientInput] = useState(searchParams.get('client') ?? '')
+
+  // Committed filter state — fetchQueries only depends on this, not the inputs
+  const [appliedFilters, setAppliedFilters] = useState({
+    domain: '',
+    client: searchParams.get('client') ?? '',
+  })
+
+  const [statusFilter, setStatusFilter] = useState<StatusCategory>('all')
+  const [queries, setQueries] = useState<QueryRow[]>([])
   const [nextCursor, setNextCursor] = useState<string | null>(null)
+  const [oldestTimestamp, setOldestTimestamp] = useState<number | null>(null)
   const [loading, setLoading] = useState(false)
   const [loadingMore, setLoadingMore] = useState(false)
+
+  // Track the latest fetch to ignore stale responses
+  const fetchIdRef = useRef(0)
+
+  const isAllInstances = selectedInstance === '__all__'
 
   useEffect(() => {
     fetch('/api/stats/summary')
       .then((r) => r.json())
       .then((data) => {
-        const insts: Instance[] = (data.instances ?? []).map((i: { id: string; name: string }) => ({ id: i.id, name: i.name }))
+        const insts: Instance[] = (data.instances ?? []).map((i: { id: string; name: string }) => ({
+          id: i.id,
+          name: i.name,
+        }))
         setInstances(insts)
         const paramInstance = searchParams.get('instance')
         if (paramInstance && insts.find((i) => i.id === paramInstance)) {
           setSelectedInstance(paramInstance)
-        } else if (insts.length > 0) {
-          setSelectedInstance(insts[0].id)
+        } else {
+          // Default to "All Instances" when there are multiple, else first instance
+          setSelectedInstance(insts.length > 1 ? '__all__' : (insts[0]?.id ?? ''))
         }
       })
       .catch(() => {})
   }, [searchParams])
 
-  const fetchQueries = useCallback(async (cursor?: string) => {
-    if (!selectedInstance) return
-    const isLoadMore = !!cursor
-    isLoadMore ? setLoadingMore(true) : setLoading(true)
+  const fetchQueries = useCallback(
+    async (opts?: { cursor?: string; until?: number }) => {
+      if (!selectedInstance) return
+      const isLoadMore = !!(opts?.cursor || opts?.until)
+      isLoadMore ? setLoadingMore(true) : setLoading(true)
 
-    const now = Math.floor(Date.now() / 1000)
-    const from = now - hours * 3600
-    const params = new URLSearchParams({
-      from: String(from),
-      until: String(now),
-      length: '50',
-    })
-    if (cursor) params.set('cursor', cursor)
-    if (domainFilter.trim()) params.set('domain', domainFilter.trim())
-    if (clientFilter.trim()) params.set('client_ip', clientFilter.trim())
+      const fetchId = ++fetchIdRef.current
 
-    try {
-      const res = await fetch(`/api/pihole/${selectedInstance}/queries?${params}`)
-      if (res.ok) {
+      const now = Math.floor(Date.now() / 1000)
+      const from = now - hours * 3600
+      const params = new URLSearchParams({
+        from: String(from),
+        until: opts?.until ? String(opts.until) : String(now),
+        length: isAllInstances ? '100' : '50',
+      })
+      if (opts?.cursor) params.set('cursor', opts.cursor)
+      if (appliedFilters.domain) params.set('domain', appliedFilters.domain)
+      if (appliedFilters.client) params.set('client_ip', appliedFilters.client)
+
+      const url = isAllInstances
+        ? `/api/pihole/queries?${params}`
+        : `/api/pihole/${selectedInstance}/queries?${params}`
+
+      try {
+        const res = await fetch(url)
+        if (!res.ok) return
+        // Discard response if a newer fetch has started
+        if (fetchId !== fetchIdRef.current) return
+
         const data = await res.json()
-        setQueries((prev) => isLoadMore ? [...prev, ...(data.queries ?? [])] : (data.queries ?? []))
-        setNextCursor(data.nextCursor ?? null)
-      }
-    } catch {
-      // silently ignore
-    } finally {
-      isLoadMore ? setLoadingMore(false) : setLoading(false)
-    }
-  }, [selectedInstance, hours, domainFilter, clientFilter])
 
+        if (isAllInstances) {
+          setQueries((prev) => isLoadMore ? [...prev, ...(data.queries ?? [])] : (data.queries ?? []))
+          setOldestTimestamp(data.oldestTimestamp ?? null)
+          setNextCursor(null)
+        } else {
+          setQueries((prev) => isLoadMore ? [...prev, ...(data.queries ?? [])] : (data.queries ?? []))
+          setNextCursor(data.nextCursor ?? null)
+          setOldestTimestamp(null)
+        }
+      } catch {
+        // silently ignore network errors
+      } finally {
+        if (fetchId === fetchIdRef.current) {
+          isLoadMore ? setLoadingMore(false) : setLoading(false)
+        }
+      }
+    },
+    [selectedInstance, hours, appliedFilters, isAllInstances]
+  )
+
+  // Auto-fetch when instance, hours, or appliedFilters change (not on every input keystroke)
   useEffect(() => {
-    if (selectedInstance) fetchQueries()
-  }, [selectedInstance, hours, fetchQueries])
+    if (selectedInstance) {
+      setQueries([])
+      setNextCursor(null)
+      setOldestTimestamp(null)
+      fetchQueries()
+    }
+  }, [selectedInstance, hours, appliedFilters, fetchQueries])
 
   function handleSearch() {
-    setQueries([])
-    setNextCursor(null)
-    fetchQueries()
+    setStatusFilter('all')
+    setAppliedFilters({ domain: domainInput.trim(), client: clientInput.trim() })
+    // fetchQueries triggers via the useEffect above when appliedFilters changes
   }
+
+  function handleLoadMore() {
+    if (isAllInstances && oldestTimestamp) {
+      fetchQueries({ until: oldestTimestamp - 1 })
+    } else if (nextCursor) {
+      fetchQueries({ cursor: nextCursor })
+    }
+  }
+
+  const hasMore = isAllInstances ? !!oldestTimestamp : !!nextCursor
+
+  // Client-side status filter applied on top of fetched results
+  const visibleQueries = statusFilter === 'all'
+    ? queries
+    : queries.filter((q) => classifyStatus(q.status) === statusFilter)
 
   return (
     <div className="space-y-6">
@@ -110,92 +207,146 @@ function QueryLogContent() {
       </div>
 
       {/* Filters */}
-      <div className="glass-card p-4 flex flex-wrap gap-3 items-end">
-        <div className="flex flex-col gap-1">
-          <label className="text-xs text-white/50">Instance</label>
-          <select
-            value={selectedInstance}
-            onChange={(e) => { setSelectedInstance(e.target.value); setQueries([]); setNextCursor(null) }}
-            className="bg-white/5 border border-white/10 rounded-md px-3 py-1.5 text-sm text-white focus:outline-none focus:ring-1 focus:ring-white/20"
-          >
-            {instances.map((inst) => (
-              <option key={inst.id} value={inst.id} className="bg-gray-900">{inst.name}</option>
-            ))}
-          </select>
+      <div className="glass-card p-4 space-y-3">
+        <div className="flex flex-wrap gap-3 items-end">
+          {/* Instance selector */}
+          <div className="flex flex-col gap-1">
+            <label className="text-xs text-white/50">Instance</label>
+            <select
+              value={selectedInstance}
+              onChange={(e) => {
+                setSelectedInstance(e.target.value)
+                setQueries([])
+                setNextCursor(null)
+                setOldestTimestamp(null)
+              }}
+              className="bg-white/5 border border-white/10 rounded-md px-3 py-1.5 text-sm text-white focus:outline-none focus:ring-1 focus:ring-white/20"
+            >
+              <option value="__all__" className="bg-gray-900">All Instances</option>
+              {instances.map((inst) => (
+                <option key={inst.id} value={inst.id} className="bg-gray-900">{inst.name}</option>
+              ))}
+            </select>
+          </div>
+
+          {/* Time range */}
+          <div className="flex flex-col gap-1">
+            <label className="text-xs text-white/50">Time range</label>
+            <div className="flex gap-1">
+              {TIME_RANGES.map((r) => (
+                <button
+                  key={r.hours}
+                  onClick={() => setHours(r.hours)}
+                  className={`px-3 py-1.5 rounded-md text-sm transition-colors cursor-pointer ${
+                    hours === r.hours
+                      ? 'bg-white/15 text-white'
+                      : 'bg-white/5 text-white/50 hover:bg-white/10'
+                  }`}
+                >
+                  {r.label}
+                </button>
+              ))}
+            </div>
+          </div>
+
+          {/* Domain filter */}
+          <div className="flex flex-col gap-1">
+            <label className="text-xs text-white/50">Domain (substring search)</label>
+            <input
+              type="text"
+              value={domainInput}
+              onChange={(e) => setDomainInput(e.target.value)}
+              onKeyDown={(e) => e.key === 'Enter' && handleSearch()}
+              placeholder="e.g. google"
+              className="bg-white/5 border border-white/10 rounded-md px-3 py-1.5 text-sm text-white placeholder:text-white/20 focus:outline-none focus:ring-1 focus:ring-white/20 w-44"
+            />
+          </div>
+
+          {/* Client IP filter */}
+          <div className="flex flex-col gap-1">
+            <label className="text-xs text-white/50">Client IP</label>
+            <input
+              type="text"
+              value={clientInput}
+              onChange={(e) => setClientInput(e.target.value)}
+              onKeyDown={(e) => e.key === 'Enter' && handleSearch()}
+              placeholder="e.g. 192.168.1.10"
+              className="bg-white/5 border border-white/10 rounded-md px-3 py-1.5 text-sm text-white placeholder:text-white/20 focus:outline-none focus:ring-1 focus:ring-white/20 w-40"
+            />
+          </div>
+
+          <Button size="sm" onClick={handleSearch} disabled={loading}>
+            Search
+          </Button>
         </div>
 
-        <div className="flex flex-col gap-1">
-          <label className="text-xs text-white/50">Time range</label>
+        {/* Status filter */}
+        <div className="flex items-center gap-2">
+          <span className="text-xs text-white/40">Filter:</span>
           <div className="flex gap-1">
-            {TIME_RANGES.map((r) => (
+            {STATUS_FILTERS.map((f) => (
               <button
-                key={r.hours}
-                onClick={() => { setHours(r.hours); setQueries([]); setNextCursor(null) }}
-                className={`px-3 py-1.5 rounded-md text-sm transition-colors ${
-                  hours === r.hours
-                    ? 'bg-white/15 text-white'
-                    : 'bg-white/5 text-white/50 hover:bg-white/10'
+                key={f.value}
+                onClick={() => setStatusFilter(f.value)}
+                className={`px-3 py-1 rounded-md text-xs font-medium transition-colors cursor-pointer ${
+                  statusFilter === f.value
+                    ? f.color
+                    : 'bg-white/5 text-white/40 hover:bg-white/10'
                 }`}
               >
-                {r.label}
+                {f.label}
               </button>
             ))}
           </div>
+          {appliedFilters.domain && (
+            <span className="text-xs text-white/30 ml-2">
+              domain: <span className="text-white/60">&ldquo;{appliedFilters.domain}&rdquo;</span>
+            </span>
+          )}
+          {appliedFilters.client && (
+            <span className="text-xs text-white/30 ml-2">
+              client: <span className="text-white/60">&ldquo;{appliedFilters.client}&rdquo;</span>
+            </span>
+          )}
         </div>
-
-        <div className="flex flex-col gap-1">
-          <label className="text-xs text-white/50">Domain filter</label>
-          <input
-            type="text"
-            value={domainFilter}
-            onChange={(e) => setDomainFilter(e.target.value)}
-            onKeyDown={(e) => e.key === 'Enter' && handleSearch()}
-            placeholder="e.g. ads.example.com"
-            className="bg-white/5 border border-white/10 rounded-md px-3 py-1.5 text-sm text-white placeholder:text-white/20 focus:outline-none focus:ring-1 focus:ring-white/20 w-48"
-          />
-        </div>
-
-        <div className="flex flex-col gap-1">
-          <label className="text-xs text-white/50">Client IP</label>
-          <input
-            type="text"
-            value={clientFilter}
-            onChange={(e) => setClientFilter(e.target.value)}
-            onKeyDown={(e) => e.key === 'Enter' && handleSearch()}
-            placeholder="e.g. 192.168.1.10"
-            className="bg-white/5 border border-white/10 rounded-md px-3 py-1.5 text-sm text-white placeholder:text-white/20 focus:outline-none focus:ring-1 focus:ring-white/20 w-40"
-          />
-        </div>
-
-        <Button size="sm" onClick={handleSearch} disabled={loading}>
-          Search
-        </Button>
       </div>
 
       {/* Table */}
       <div className="glass-card overflow-hidden">
         {loading ? (
           <div className="p-8 text-center text-white/30 text-sm animate-pulse">Loading queries...</div>
-        ) : queries.length === 0 ? (
-          <div className="p-8 text-center text-white/30 text-sm">No queries found</div>
+        ) : visibleQueries.length === 0 ? (
+          <div className="p-8 text-center text-white/30 text-sm">
+            {queries.length > 0 ? 'No queries match the selected filter' : 'No queries found'}
+          </div>
         ) : (
           <>
             <div className="overflow-x-auto">
               <table className="w-full text-sm">
                 <thead>
                   <tr className="border-b border-white/5">
-                    <th className="text-left px-4 py-3 text-white/40 font-medium">Time</th>
+                    <th className="text-left px-4 py-3 text-white/40 font-medium whitespace-nowrap">Time</th>
+                    {isAllInstances && (
+                      <th className="text-left px-4 py-3 text-white/40 font-medium whitespace-nowrap">Instance</th>
+                    )}
                     <th className="text-left px-4 py-3 text-white/40 font-medium">Domain</th>
-                    <th className="text-left px-4 py-3 text-white/40 font-medium">Client</th>
+                    <th className="text-left px-4 py-3 text-white/40 font-medium whitespace-nowrap">Client</th>
                     <th className="text-left px-4 py-3 text-white/40 font-medium">Type</th>
                     <th className="text-left px-4 py-3 text-white/40 font-medium">Status</th>
                     <th className="text-left px-4 py-3 text-white/40 font-medium">Upstream</th>
                   </tr>
                 </thead>
                 <tbody>
-                  {queries.map((q) => (
-                    <tr key={q.id} className="border-b border-white/5 hover:bg-white/3 transition-colors">
+                  {visibleQueries.map((q, i) => (
+                    <tr key={`${q.id}-${q.instanceId ?? ''}-${i}`} className="border-b border-white/5 hover:bg-white/3 transition-colors">
                       <td className="px-4 py-2.5 text-white/50 font-mono text-xs whitespace-nowrap">{formatTime(q.time)}</td>
+                      {isAllInstances && (
+                        <td className="px-4 py-2.5">
+                          <span className="inline-block px-2 py-0.5 rounded text-xs bg-white/8 text-white/60 whitespace-nowrap">
+                            {q.instanceName ?? q.instanceId ?? '—'}
+                          </span>
+                        </td>
+                      )}
                       <td className="px-4 py-2.5 text-white max-w-xs truncate">{q.domain}</td>
                       <td className="px-4 py-2.5 text-white/70 font-mono text-xs whitespace-nowrap">
                         {q.client.name || q.client.ip}
@@ -204,16 +355,21 @@ function QueryLogContent() {
                       <td className="px-4 py-2.5">
                         <StatusBadge status={q.status} />
                       </td>
-                      <td className="px-4 py-2.5 text-white/40 text-xs truncate max-w-[12rem]">{q.upstream ?? '—'}</td>
+                      <td className="px-4 py-2.5 text-white/40 text-xs truncate max-w-[10rem]">{q.upstream ?? '—'}</td>
                     </tr>
                   ))}
                 </tbody>
               </table>
             </div>
-            {nextCursor && (
+            {hasMore && (
               <div className="p-4 text-center border-t border-white/5">
-                <Button size="sm" variant="outline" onClick={() => fetchQueries(nextCursor)} disabled={loadingMore}>
-                  {loadingMore ? 'Loading...' : 'Load more'}
+                <Button
+                  size="sm"
+                  variant="outline"
+                  onClick={handleLoadMore}
+                  disabled={loadingMore}
+                >
+                  {loadingMore ? 'Loading...' : isAllInstances ? 'Load older' : 'Load more'}
                 </Button>
               </div>
             )}
@@ -221,20 +377,6 @@ function QueryLogContent() {
         )}
       </div>
     </div>
-  )
-}
-
-function StatusBadge({ status }: { status: string }) {
-  const blocked = status.toLowerCase().includes('block') || status === 'GRAVITY' || status === 'BLACKLIST'
-  const cached = status.toLowerCase().includes('cache')
-  return (
-    <span className={`inline-block px-2 py-0.5 rounded text-xs font-medium ${
-      blocked ? 'bg-red-500/15 text-red-400' :
-      cached  ? 'bg-blue-500/15 text-blue-400' :
-                'bg-green-500/15 text-green-400'
-    }`}>
-      {status}
-    </span>
   )
 }
 
