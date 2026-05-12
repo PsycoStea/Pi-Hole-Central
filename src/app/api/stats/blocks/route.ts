@@ -7,9 +7,16 @@ import { NextResponse } from 'next/server'
 
 export const dynamic = 'force-dynamic'
 
+let blocksCache: { data: unknown[]; ts: number } | null = null
+const BLOCKS_TTL = 60_000
+
 export async function GET() {
   const session = await auth()
   if (!session) return NextResponse.json({ error: 'Unauthorized' }, { status: 401 })
+
+  if (blocksCache && Date.now() - blocksCache.ts < BLOCKS_TTL) {
+    return NextResponse.json({ data: blocksCache.data })
+  }
 
   const activeInstances = await db.query.instances.findMany({
     where: eq(instances.enabled, true),
@@ -19,7 +26,6 @@ export async function GET() {
     activeInstances.map((inst) => piholeClient.getQueryHistory(inst.id))
   )
 
-  // Aggregate by 10-min timestamp bucket across all instances
   const buckets = new Map<number, { blocked: number; total: number }>()
   for (const result of results) {
     if (result.status !== 'fulfilled') continue
@@ -36,5 +42,6 @@ export async function GET() {
     .map(([timestamp, v]) => ({ timestamp, ...v }))
     .sort((a, b) => a.timestamp - b.timestamp)
 
+  blocksCache = { data, ts: Date.now() }
   return NextResponse.json({ data })
 }

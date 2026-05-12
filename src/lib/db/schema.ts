@@ -1,4 +1,4 @@
-import { sqliteTable, text, integer, real } from 'drizzle-orm/sqlite-core'
+import { sqliteTable, text, integer, real, index } from 'drizzle-orm/sqlite-core'
 
 export const users = sqliteTable('users', {
   id: text('id').primaryKey(),
@@ -30,7 +30,9 @@ export const statsSnapshots = sqliteTable('stats_snapshots', {
   topDomainsJson: text('top_domains_json').notNull().default('[]'),
   topClientsJson: text('top_clients_json').notNull().default('[]'),
   status: text('status').notNull().default('online'),
-})
+}, (t) => [
+  index('idx_stats_instance_ts').on(t.instanceId, t.timestamp),
+])
 
 export const notificationChannels = sqliteTable('notification_channels', {
   id: text('id').primaryKey(),
