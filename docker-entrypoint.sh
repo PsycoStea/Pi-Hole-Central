@@ -38,7 +38,13 @@ const existing = sqlite.prepare('SELECT id FROM users WHERE username = ?').get('
 if (!existing) {
   const hash = bcrypt.hashSync('admin', 12)
   sqlite.prepare('INSERT INTO users (id, username, password_hash, created_at) VALUES (?, ?, ?, ?)').run(randomUUID(), 'admin', hash, Math.floor(Date.now() / 1000))
-  console.log('Created admin user (password: admin)')
+  console.log('=========================================')
+  console.log('  DEFAULT CREDENTIALS CREATED:')
+  console.log('  Username: admin')
+  console.log('  Password: admin')
+  console.log('  CHANGE THIS PASSWORD IMMEDIATELY')
+  console.log('  Settings -> Account -> Change Password')
+  console.log('=========================================')
 }
 
 // Seed default alert settings
