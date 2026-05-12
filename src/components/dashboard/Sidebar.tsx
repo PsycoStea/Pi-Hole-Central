@@ -37,11 +37,11 @@ export default function Sidebar({ user }: { user: string }) {
       {/* Logo */}
       <div className="p-6 border-b border-border">
         <div className="flex items-center gap-3">
-          <div className="p-2 rounded-lg bg-blue-500/10 border border-blue-500/20">
+          <div className="p-2 rounded-lg bg-blue-500/10 border border-blue-500/20 animate-pulse-glow">
             <ShieldCheck className="h-5 w-5 text-blue-400" />
           </div>
           <div>
-            <p className="font-semibold text-sm">Pi-Hole Central</p>
+            <p className="font-semibold text-sm gradient-text">Pi-Hole Central</p>
             <p className="text-xs text-muted-foreground">Dashboard</p>
           </div>
         </div>
@@ -57,12 +57,15 @@ export default function Sidebar({ user }: { user: string }) {
               key={href}
               href={href}
               className={cn(
-                'flex items-center gap-3 px-3 py-2.5 rounded-lg text-sm transition-all group',
+                'flex items-center gap-3 px-3 py-2.5 rounded-lg text-sm group',
                 active
-                  ? 'bg-blue-500/15 text-blue-400 border border-blue-500/20'
-                  : 'text-muted-foreground hover:text-foreground hover:bg-accent'
+                  ? 'relative bg-gradient-to-r from-blue-500/20 to-purple-500/10 text-blue-400 border border-blue-500/20'
+                  : 'text-muted-foreground hover:text-foreground hover:bg-accent hover:translate-x-0.5 transition-all duration-150'
               )}
             >
+              {active && (
+                <span className="absolute left-0 top-1/2 -translate-y-1/2 h-4 w-0.5 bg-blue-400 rounded-full" />
+              )}
               <Icon className="h-4 w-4 shrink-0" />
               <span className="flex-1">{label}</span>
               {active && <ChevronRight className="h-3 w-3 opacity-50" />}

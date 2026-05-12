@@ -1,8 +1,8 @@
 'use client'
 
 import {
-  LineChart,
-  Line,
+  AreaChart,
+  Area,
   XAxis,
   YAxis,
   CartesianGrid,
@@ -50,7 +50,13 @@ export default function BlocksHistoryChart({ data, label }: Props) {
         <p className="text-xs font-medium text-muted-foreground uppercase tracking-wider mb-4">{label}</p>
       )}
       <ResponsiveContainer width="100%" height={260}>
-        <LineChart data={data} margin={{ top: 4, right: 4, left: 0, bottom: 0 }}>
+        <AreaChart data={data} margin={{ top: 4, right: 4, left: 0, bottom: 0 }}>
+          <defs>
+            <linearGradient id="blockedGrad" x1="0" y1="0" x2="0" y2="1">
+              <stop offset="5%"  stopColor="#ef4444" stopOpacity={0.25} />
+              <stop offset="95%" stopColor="#ef4444" stopOpacity={0} />
+            </linearGradient>
+          </defs>
           <CartesianGrid strokeDasharray="3 3" stroke="rgba(255,255,255,0.05)" />
           <XAxis
             dataKey="timestamp"
@@ -58,13 +64,13 @@ export default function BlocksHistoryChart({ data, label }: Props) {
             domain={['dataMin', 'dataMax']}
             scale="time"
             tickFormatter={formatTick}
-            tick={{ fill: 'rgba(255,255,255,0.3)', fontSize: 11 }}
+            tick={{ fill: 'rgba(255,255,255,0.4)', fontSize: 11 }}
             axisLine={false}
             tickLine={false}
             minTickGap={40}
           />
           <YAxis
-            tick={{ fill: 'rgba(255,255,255,0.3)', fontSize: 11 }}
+            tick={{ fill: 'rgba(255,255,255,0.4)', fontSize: 11 }}
             axisLine={false}
             tickLine={false}
             width={40}
@@ -83,15 +89,16 @@ export default function BlocksHistoryChart({ data, label }: Props) {
               name === 'blocked' ? 'Blocked' : 'Total',
             ]}
           />
-          <Line
+          <Area
             type="monotone"
             dataKey="blocked"
             stroke="#ef4444"
             strokeWidth={2}
+            fill="url(#blockedGrad)"
             dot={false}
             activeDot={{ r: 4, fill: '#ef4444' }}
           />
-        </LineChart>
+        </AreaChart>
       </ResponsiveContainer>
     </div>
   )

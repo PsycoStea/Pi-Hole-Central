@@ -158,7 +158,7 @@ export default function OverviewPage() {
     <div className="space-y-6">
       <div className="flex items-start justify-between gap-4">
         <div>
-          <h1 className="text-2xl font-bold">Overview</h1>
+          <h1 className="text-2xl font-bold gradient-text">Overview</h1>
           <p className="text-sm text-muted-foreground mt-0.5">
             {agg ? `${agg.instancesOnline} of ${agg.instancesTotal} instances online` : 'No instances configured'}
           </p>
@@ -205,6 +205,7 @@ export default function OverviewPage() {
           subtitle="Today across all instances"
           icon={Activity}
           color="blue"
+          delay={0}
         />
         <StatCard
           title="Blocked"
@@ -212,6 +213,7 @@ export default function OverviewPage() {
           subtitle="Ads & trackers blocked"
           icon={ShieldOff}
           color="red"
+          delay={60}
         />
         <StatCard
           title="Block Rate"
@@ -219,6 +221,7 @@ export default function OverviewPage() {
           subtitle="Average across online instances"
           icon={Shield}
           color="green"
+          delay={120}
         />
         <StatCard
           title="Instances"
@@ -226,6 +229,7 @@ export default function OverviewPage() {
           subtitle="Online"
           icon={Server}
           color="purple"
+          delay={180}
         />
       </div>
 

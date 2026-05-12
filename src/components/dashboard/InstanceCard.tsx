@@ -62,7 +62,7 @@ export default function InstanceCard({ instance, onUpdate }: {
 
   return (
     <div className={cn(
-      'glass-card p-5 space-y-4',
+      'glass-card p-5 space-y-4 animate-fade-in-up',
       !isOnline && 'opacity-70'
     )}>
       <div className="flex items-start justify-between gap-2">
@@ -79,7 +79,7 @@ export default function InstanceCard({ instance, onUpdate }: {
           className={cn(
             'shrink-0 text-xs',
             isOnline
-              ? 'bg-green-500/15 text-green-400 border-green-500/25'
+              ? 'bg-green-500/15 text-green-400 border-green-500/25 glow-green-sm'
               : 'bg-red-500/15 text-red-400 border-red-500/25'
           )}
         >
