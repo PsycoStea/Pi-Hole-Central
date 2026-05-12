@@ -32,10 +32,15 @@ const baseNavItems = [
   { href: '/settings/account', label: 'Account', icon: UserCog },
 ]
 
+const viewerNavItems = [
+  { href: '/', label: 'Overview', icon: LayoutDashboard },
+  { href: '/queries', label: 'Query Log', icon: ScrollText },
+]
+
 export default function Sidebar({ user, role }: { user: string; role: 'admin' | 'viewer' }) {
   const navItems = role === 'admin'
     ? [...baseNavItems, { href: '/settings/users', label: 'Users', icon: Users2 }]
-    : baseNavItems
+    : viewerNavItems
   const pathname = usePathname()
 
   return (
