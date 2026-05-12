@@ -4,6 +4,8 @@ A centralised dashboard for monitoring and managing multiple Pi-Hole v6 instance
 
 > **Built entirely with [Claude Code](https://claude.ai/code)** — Anthropic's agentic coding tool.
 
+![Pi-Hole Central Dashboard](docs/screenshot.png)
+
 ---
 
 ## Quick Start
