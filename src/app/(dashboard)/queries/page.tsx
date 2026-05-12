@@ -28,15 +28,6 @@ interface Instance {
 
 type StatusCategory = 'all' | 'blocked' | 'cached' | 'forwarded'
 
-const MAX_QUERIES = 1000
-const PAGE = 200
-
-const TIME_RANGES = [
-  { label: 'Last 1h', hours: 1 },
-  { label: 'Last 6h', hours: 6 },
-  { label: 'Last 24h', hours: 24 },
-]
-
 const STATUS_FILTERS: { label: string; value: StatusCategory; color: string }[] = [
   { label: 'All', value: 'all', color: 'bg-white/15 text-white' },
   { label: 'Blocked', value: 'blocked', color: 'bg-red-500/20 text-red-400' },
@@ -73,18 +64,18 @@ function QueryLogContent() {
 
   const [instances, setInstances] = useState<Instance[]>([])
   const [selectedInstance, setSelectedInstance] = useState<string>('')
-  const [hours, setHours] = useState(1)
 
   const [domainInput, setDomainInput] = useState('')
   const [clientInput, setClientInput] = useState(searchParams.get('client') ?? '')
 
   const [statusFilter, setStatusFilter] = useState<StatusCategory>('all')
   const [queries, setQueries] = useState<QueryRow[]>([])
+  const [nextCursor, setNextCursor] = useState<string | null>(null)
+  const [oldestTimestamp, setOldestTimestamp] = useState<number | null>(null)
   const [loading, setLoading] = useState(false)
-  const [limitReached, setLimitReached] = useState(false)
+  const [loadingMore, setLoadingMore] = useState(false)
 
   const fetchIdRef = useRef(0)
-
   const isAllInstances = selectedInstance === '__all__'
 
   useEffect(() => {
@@ -106,69 +97,87 @@ function QueryLogContent() {
       .catch(() => {})
   }, [searchParams])
 
-  const fetchAllQueries = useCallback(async () => {
-    if (!selectedInstance) return
-    setLoading(true)
-    const fetchId = ++fetchIdRef.current
-    const now = Math.floor(Date.now() / 1000)
-    const from = now - hours * 3600
-    const accumulated: QueryRow[] = []
+  const fetchQueries = useCallback(
+    async (opts?: { cursor?: string; until?: number }) => {
+      if (!selectedInstance) return
+      const isLoadMore = !!(opts?.cursor || opts?.until)
+      isLoadMore ? setLoadingMore(true) : setLoading(true)
 
-    try {
-      if (isAllInstances) {
-        let until = now
-        while (accumulated.length < MAX_QUERIES) {
-          if (fetchId !== fetchIdRef.current) return
-          const params = new URLSearchParams({ from: String(from), until: String(until), length: String(PAGE) })
-          const res = await fetch(`/api/pihole/queries?${params}`)
-          if (!res.ok) break
-          const data = await res.json()
-          accumulated.push(...(data.queries ?? []))
-          if (!data.oldestTimestamp || (data.queries ?? []).length < PAGE) break
-          until = data.oldestTimestamp - 1
+      const fetchId = ++fetchIdRef.current
+      const now = Math.floor(Date.now() / 1000)
+
+      const params = new URLSearchParams({
+        until: opts?.until ? String(opts.until) : String(now),
+        length: isAllInstances ? '100' : '50',
+      })
+      if (opts?.cursor) params.set('cursor', opts.cursor)
+
+      const url = isAllInstances
+        ? `/api/pihole/queries?${params}`
+        : `/api/pihole/${selectedInstance}/queries?${params}`
+
+      try {
+        const res = await fetch(url)
+        if (!res.ok) return
+        if (fetchId !== fetchIdRef.current) return
+
+        const data = await res.json()
+
+        if (isAllInstances) {
+          setQueries((prev) => isLoadMore ? [...prev, ...(data.queries ?? [])] : (data.queries ?? []))
+          setOldestTimestamp(data.oldestTimestamp ?? null)
+          setNextCursor(null)
+        } else {
+          setQueries((prev) => isLoadMore ? [...prev, ...(data.queries ?? [])] : (data.queries ?? []))
+          setNextCursor(data.nextCursor ?? null)
+          setOldestTimestamp(null)
         }
-      } else {
-        let cursor: string | null = null
-        do {
-          if (fetchId !== fetchIdRef.current) return
-          const params = new URLSearchParams({ from: String(from), until: String(now), length: String(PAGE) })
-          if (cursor) params.set('cursor', cursor)
-          const res = await fetch(`/api/pihole/${selectedInstance}/queries?${params}`)
-          if (!res.ok) break
-          const data = await res.json()
-          accumulated.push(...(data.queries ?? []))
-          cursor = data.nextCursor ?? null
-        } while (cursor && accumulated.length < MAX_QUERIES)
+      } catch {
+        // silently ignore network errors
+      } finally {
+        if (fetchId === fetchIdRef.current) {
+          isLoadMore ? setLoadingMore(false) : setLoading(false)
+        }
       }
-    } catch {
-      // silently ignore network errors
-    }
-
-    if (fetchId === fetchIdRef.current) {
-      setQueries(accumulated)
-      setLimitReached(accumulated.length >= MAX_QUERIES)
-      setLoading(false)
-    }
-  }, [selectedInstance, hours, isAllInstances])
+    },
+    [selectedInstance, isAllInstances]
+  )
 
   useEffect(() => {
     if (selectedInstance) {
       setQueries([])
-      setLimitReached(false)
-      fetchAllQueries()
+      setNextCursor(null)
+      setOldestTimestamp(null)
+      fetchQueries()
     }
-  }, [selectedInstance, hours, fetchAllQueries])
+  }, [selectedInstance, fetchQueries])
 
   function handleRefresh() {
     setStatusFilter('all')
-    fetchAllQueries()
+    setQueries([])
+    setNextCursor(null)
+    setOldestTimestamp(null)
+    fetchQueries()
   }
 
-  // Client-side filtering — no server round-trip needed
+  function handleLoadMore() {
+    if (isAllInstances && oldestTimestamp) {
+      fetchQueries({ until: oldestTimestamp - 1 })
+    } else if (nextCursor) {
+      fetchQueries({ cursor: nextCursor })
+    }
+  }
+
+  const hasMore = isAllInstances ? !!oldestTimestamp : !!nextCursor
+
+  // Client-side filtering: domain = substring, client IP = exact, client name = substring
   const visibleQueries = queries.filter((q) => {
     if (domainInput && !q.domain.toLowerCase().includes(domainInput.toLowerCase())) return false
-    const clientStr = (q.client.name + ' ' + q.client.ip).toLowerCase()
-    if (clientInput && !clientStr.includes(clientInput.toLowerCase())) return false
+    if (clientInput) {
+      const ipMatch = q.client.ip === clientInput
+      const nameMatch = q.client.name.toLowerCase().includes(clientInput.toLowerCase())
+      if (!ipMatch && !nameMatch) return false
+    }
     if (statusFilter !== 'all' && classifyStatus(q.status) !== statusFilter) return false
     return true
   })
@@ -194,7 +203,8 @@ function QueryLogContent() {
               onChange={(e) => {
                 setSelectedInstance(e.target.value)
                 setQueries([])
-                setLimitReached(false)
+                setNextCursor(null)
+                setOldestTimestamp(null)
               }}
               className="bg-white/5 border border-white/10 rounded-md px-3 py-1.5 text-sm text-white focus:outline-none focus:ring-1 focus:ring-white/20"
             >
@@ -205,29 +215,9 @@ function QueryLogContent() {
             </select>
           </div>
 
-          {/* Time range */}
-          <div className="flex flex-col gap-1">
-            <label className="text-xs text-white/50">Time range</label>
-            <div className="flex gap-1">
-              {TIME_RANGES.map((r) => (
-                <button
-                  key={r.hours}
-                  onClick={() => setHours(r.hours)}
-                  className={`px-3 py-1.5 rounded-md text-sm transition-colors cursor-pointer ${
-                    hours === r.hours
-                      ? 'bg-white/15 text-white'
-                      : 'bg-white/5 text-white/50 hover:bg-white/10'
-                  }`}
-                >
-                  {r.label}
-                </button>
-              ))}
-            </div>
-          </div>
-
           {/* Domain filter */}
           <div className="flex flex-col gap-1">
-            <label className="text-xs text-white/50">Domain (substring search)</label>
+            <label className="text-xs text-white/50">Domain (substring)</label>
             <input
               type="text"
               value={domainInput}
@@ -238,16 +228,16 @@ function QueryLogContent() {
             />
           </div>
 
-          {/* Client IP filter */}
+          {/* Client filter */}
           <div className="flex flex-col gap-1">
-            <label className="text-xs text-white/50">Client IP</label>
+            <label className="text-xs text-white/50">Client IP (exact) / hostname</label>
             <input
               type="text"
               value={clientInput}
               onChange={(e) => setClientInput(e.target.value)}
               onKeyDown={(e) => e.key === 'Enter' && handleRefresh()}
               placeholder="e.g. 192.168.1.10"
-              className="bg-white/5 border border-white/10 rounded-md px-3 py-1.5 text-sm text-white placeholder:text-white/20 focus:outline-none focus:ring-1 focus:ring-white/20 w-40"
+              className="bg-white/5 border border-white/10 rounded-md px-3 py-1.5 text-sm text-white placeholder:text-white/20 focus:outline-none focus:ring-1 focus:ring-white/20 w-48"
             />
           </div>
 
@@ -282,13 +272,6 @@ function QueryLogContent() {
         </div>
       </div>
 
-      {/* Limit notice */}
-      {limitReached && (
-        <div className="text-xs text-white/40 text-center">
-          Showing first {MAX_QUERIES.toLocaleString()} queries. Narrow the time range to see more.
-        </div>
-      )}
-
       {/* Table */}
       <div className="glass-card overflow-hidden">
         {loading ? (
@@ -298,46 +281,60 @@ function QueryLogContent() {
             {queries.length > 0 ? 'No queries match the selected filter' : 'No queries found'}
           </div>
         ) : (
-          <div className="overflow-x-auto">
-            <table className="w-full text-sm">
-              <thead>
-                <tr className="border-b border-white/5">
-                  <th className="text-left px-4 py-3 text-white/40 font-medium whitespace-nowrap">Time</th>
-                  {isAllInstances && (
-                    <th className="text-left px-4 py-3 text-white/40 font-medium whitespace-nowrap">Instance</th>
-                  )}
-                  <th className="text-left px-4 py-3 text-white/40 font-medium">Domain</th>
-                  <th className="text-left px-4 py-3 text-white/40 font-medium whitespace-nowrap">Client</th>
-                  <th className="text-left px-4 py-3 text-white/40 font-medium">Type</th>
-                  <th className="text-left px-4 py-3 text-white/40 font-medium">Status</th>
-                  <th className="text-left px-4 py-3 text-white/40 font-medium">Upstream</th>
-                </tr>
-              </thead>
-              <tbody>
-                {visibleQueries.map((q, i) => (
-                  <tr key={`${q.id}-${q.instanceId ?? ''}-${i}`} className="border-b border-white/5 hover:bg-white/3 transition-colors">
-                    <td className="px-4 py-2.5 text-white/50 font-mono text-xs whitespace-nowrap">{formatTime(q.time)}</td>
+          <>
+            <div className="overflow-x-auto">
+              <table className="w-full text-sm">
+                <thead>
+                  <tr className="border-b border-white/5">
+                    <th className="text-left px-4 py-3 text-white/40 font-medium whitespace-nowrap">Time</th>
                     {isAllInstances && (
-                      <td className="px-4 py-2.5">
-                        <span className="inline-block px-2 py-0.5 rounded text-xs bg-white/8 text-white/60 whitespace-nowrap">
-                          {q.instanceName ?? q.instanceId ?? '—'}
-                        </span>
-                      </td>
+                      <th className="text-left px-4 py-3 text-white/40 font-medium whitespace-nowrap">Instance</th>
                     )}
-                    <td className="px-4 py-2.5 text-white max-w-xs truncate">{q.domain}</td>
-                    <td className="px-4 py-2.5 text-white/70 font-mono text-xs whitespace-nowrap">
-                      {q.client.name || q.client.ip}
-                    </td>
-                    <td className="px-4 py-2.5 text-white/50">{q.type}</td>
-                    <td className="px-4 py-2.5">
-                      <StatusBadge status={q.status} />
-                    </td>
-                    <td className="px-4 py-2.5 text-white/40 text-xs truncate max-w-[10rem]">{q.upstream ?? '—'}</td>
+                    <th className="text-left px-4 py-3 text-white/40 font-medium">Domain</th>
+                    <th className="text-left px-4 py-3 text-white/40 font-medium whitespace-nowrap">Client</th>
+                    <th className="text-left px-4 py-3 text-white/40 font-medium">Type</th>
+                    <th className="text-left px-4 py-3 text-white/40 font-medium">Status</th>
+                    <th className="text-left px-4 py-3 text-white/40 font-medium">Upstream</th>
                   </tr>
-                ))}
-              </tbody>
-            </table>
-          </div>
+                </thead>
+                <tbody>
+                  {visibleQueries.map((q, i) => (
+                    <tr key={`${q.id}-${q.instanceId ?? ''}-${i}`} className="border-b border-white/5 hover:bg-white/3 transition-colors">
+                      <td className="px-4 py-2.5 text-white/50 font-mono text-xs whitespace-nowrap">{formatTime(q.time)}</td>
+                      {isAllInstances && (
+                        <td className="px-4 py-2.5">
+                          <span className="inline-block px-2 py-0.5 rounded text-xs bg-white/8 text-white/60 whitespace-nowrap">
+                            {q.instanceName ?? q.instanceId ?? '—'}
+                          </span>
+                        </td>
+                      )}
+                      <td className="px-4 py-2.5 text-white max-w-xs truncate">{q.domain}</td>
+                      <td className="px-4 py-2.5 text-white/70 font-mono text-xs whitespace-nowrap">
+                        {q.client.name || q.client.ip}
+                      </td>
+                      <td className="px-4 py-2.5 text-white/50">{q.type}</td>
+                      <td className="px-4 py-2.5">
+                        <StatusBadge status={q.status} />
+                      </td>
+                      <td className="px-4 py-2.5 text-white/40 text-xs truncate max-w-[10rem]">{q.upstream ?? '—'}</td>
+                    </tr>
+                  ))}
+                </tbody>
+              </table>
+            </div>
+            {hasMore && (
+              <div className="p-4 text-center border-t border-white/5">
+                <Button
+                  size="sm"
+                  variant="outline"
+                  onClick={handleLoadMore}
+                  disabled={loadingMore}
+                >
+                  {loadingMore ? 'Loading...' : 'Load older'}
+                </Button>
+              </div>
+            )}
+          </>
         )}
       </div>
     </div>
