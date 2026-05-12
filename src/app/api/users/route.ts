@@ -41,12 +41,17 @@ export async function POST(req: Request) {
     return NextResponse.json({ error: 'Password must be at least 8 characters' }, { status: 400 })
   }
 
-  const existing = await db.query.users.findFirst({ where: eq(users.username, username) })
-  if (existing) return NextResponse.json({ error: 'Username already taken' }, { status: 409 })
+  try {
+    const existing = await db.query.users.findFirst({ where: eq(users.username, username) })
+    if (existing) return NextResponse.json({ error: 'Username already taken' }, { status: 409 })
 
-  const hash = await bcrypt.hash(password, 12)
-  const id = randomUUID()
-  await db.insert(users).values({ id, username, passwordHash: hash, role, createdAt: new Date() })
+    const hash = await bcrypt.hash(password, 12)
+    const id = randomUUID()
+    await db.insert(users).values({ id, username, passwordHash: hash, role, createdAt: new Date() })
 
-  return NextResponse.json({ id, username, role }, { status: 201 })
+    return NextResponse.json({ id, username, role }, { status: 201 })
+  } catch (err) {
+    console.error('[POST /api/users]', err)
+    return NextResponse.json({ error: 'Internal server error' }, { status: 500 })
+  }
 }
