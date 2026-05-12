@@ -15,6 +15,20 @@
       "when": 1778514000000,
       "tag": "0001_app_settings",
       "breakpoints": true
+    },
+    {
+      "idx": 2,
+      "version": "6",
+      "when": 1778520000000,
+      "tag": "0002_user_roles",
+      "breakpoints": true
+    },
+    {
+      "idx": 3,
+      "version": "6",
+      "when": 1778526000000,
+      "tag": "0003_stats_index",
+      "breakpoints": true
     }
   ]
 }
