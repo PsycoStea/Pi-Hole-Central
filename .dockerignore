@@ -1,0 +1,13 @@
+# Keep secrets and local state out of the build context. Next.js copies .env
+# files it loaded at build time into the standalone output, so an .env reaching
+# the build context ends up baked into the runtime image.
+.env
+.env.*
+!.env.example
+
+.git
+.gitignore
+node_modules
+.next
+data
+docs
