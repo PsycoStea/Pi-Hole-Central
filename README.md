@@ -121,18 +121,43 @@ Two roles, enforced on the server:
 
 ---
 
-## Security
+## Security and hardening
 
-The code went through a multi-pass security audit and fix pass in 2026. Highlights:
+Pi-Hole Central was built with an AI coding agent, so before this release it went through a structured security audit and fix pass instead of being taken on trust. The audit used the open-source [security-audit skill from Cloudflare](https://github.com/cloudflare/security-audit-skill), run by Claude Code agents under the maintainer's direction. It is not a third-party penetration test, but every finding had to be reproduced before it counted, and every fix had to be proven by a test. **The full list of findings and fixes is in [SECURITY-AUDIT.md](SECURITY-AUDIT.md).**
 
-- Sessions are revoked on password change, admin reset, demotion and sign-out
-- Sign-in is rate-limited per address and per user; password hashing runs off the main thread
-- State-changing API calls and the live stream refuse cross-site requests; the dashboard cannot be framed
-- Pi-hole and SSH passwords are stored encrypted (AES-256-GCM); node traffic can be pinned to your own CA
-- Viewer-reachable node calls are cached, coalesced and limited per node; disabled nodes get no calls
-- Deploys and Docker images are pinned; the container runs with an owner-only data directory
+**The audit (November 2026).** Five scoped runs covered the codebase:
 
-Please report security issues privately via GitHub (Security → Report a vulnerability) rather than in a public issue.
+| Run | Scope |
+|---|---|
+| 1 | Unauthenticated surface, sign-in and sessions, viewer-to-admin authorization on every API route, the live event stream, users, audit log |
+| 2 | SSH command construction and host keys, Pi-hole API path building, background jobs (poller, recovery, watchdog, DNS schedules) |
+| 3A | Secrets at rest and in transit, SSRF and other outbound requests |
+| 3B | Backups and restore, rendering, audit log, nebula-sync parsing |
+| 4 | Build, deploy and supply chain |
+
+Hunter agents looked for issues, independent verifier agents had to **reproduce each candidate** in an isolated lab (no network access, a read-only copy of the code, mock Pi-holes and SSH servers), and critic passes looked for areas the hunters missed.
+
+**Result:** 42 records: 21 confirmed findings (2 Medium, 19 Low, none Critical or High), 15 leads that needed checking against a real deployment, and 6 rejected as not vulnerabilities. **All 36 confirmed findings and leads are fixed or hardened; none is open.**
+
+**The fix pass.** Fixes shipped in phases, each deployed separately, each with:
+- a **lab test that fails on the old code and passes on the new** (a test that passes either way proves nothing);
+- a **live check** on the running deployment after release;
+- and a **final regression run** over the released code: 275 lab assertions, 0 failures.
+
+Some of what changed:
+- **Sessions and sign-in:** sessions can be revoked (password change, admin reset, demotion and sign-out end every session); sign-in is rate-limited per address and per user; password hashing runs off the main thread so a login flood can't stall the app
+- **Cross-site protection:** state-changing API calls and the live stream refuse cross-site requests; the dashboard can't be framed
+- **Node traffic:** https to the Pi-hole nodes pinned to your own CA, no redirects followed, sessions bound to the URL that issued them, node certificate expiry alerts
+- **Automatic recovery:** checks on the node itself before restarting or rebooting, never acts on two nodes at once, limits reboots, and keeps those limits across app restarts
+- **Maintenance lock:** updates, gravity runs and backups take a per-node lock, so recovery can't interfere with them
+- **Node load:** viewer-triggered node calls are cached, coalesced, cancelled when the browser disconnects, and capped per node; disabled nodes get no calls
+- **Backups:** only a valid Teleporter archive counts as a backup; files are removed with their instance
+- **Notifications:** webhook tokens don't follow redirects; email requires TLS
+- **Supply chain:** Docker base image pinned by digest, owner-only data files, and a deploy script that only deploys an expected, fast-forward commit over an authenticated channel
+
+**Known limits** (decided, not overlooked): stored secrets aren't bound to their database row (that needs a new ciphertext format); viewers can read some admin configuration through the API; your reverse proxy's traffic to *other* apps is out of scope.
+
+**Reporting a vulnerability:** please use GitHub's private reporting (**Security → Report a vulnerability**) rather than a public issue.
 
 ---
 
