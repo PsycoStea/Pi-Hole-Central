@@ -1,3 +1,5 @@
+import { errMsg } from '@/lib/errors'
+import { intParam } from '@/lib/pihole/validate'
 import { auth } from '@/lib/auth'
 import { db } from '@/lib/db'
 import { instances } from '@/lib/db/schema'
@@ -17,9 +19,11 @@ export async function GET(req: Request) {
   const url = new URL(req.url)
   const from = url.searchParams.get('from') ? parseInt(url.searchParams.get('from')!, 10) : undefined
   const until = url.searchParams.get('until') ? parseInt(url.searchParams.get('until')!, 10) : undefined
-  const length = url.searchParams.get('length') ? parseInt(url.searchParams.get('length')!, 10) : 100
+  const length = intParam(url.searchParams.get('length'), 100, 1, 1000)
   const domain = url.searchParams.get('domain') ?? undefined
   const client_ip = url.searchParams.get('client_ip') ?? undefined
+  // Pi-hole matches these exactly unless they contain * wildcards.
+  const client_name = url.searchParams.get('client_name') ?? undefined
 
   const activeInstances = await db.query.instances.findMany({
     where: eq(instances.enabled, true),
@@ -27,20 +31,22 @@ export async function GET(req: Request) {
 
   const results = await Promise.allSettled(
     activeInstances.map((inst) =>
-      piholeClient.getQueries(inst.id, { from, until, length, domain, client_ip }).then((r) =>
+      piholeClient.getQueries(inst.id, { from, until, length, domain, client_ip, client_name }, req.signal).then((r) =>
         r.queries.map((q): TaggedQuery => ({ ...q, instanceId: inst.id, instanceName: inst.name }))
       )
     )
   )
 
   const merged: TaggedQuery[] = []
-  for (const result of results) {
+  const failures: { name: string; error: string }[] = []
+  results.forEach((result, i) => {
     if (result.status === 'fulfilled') merged.push(...result.value)
-  }
+    else failures.push({ name: activeInstances[i].name, error: errMsg(result.reason) })
+  })
 
   merged.sort((a, b) => b.time - a.time)
   const trimmed = merged.slice(0, length)
   const oldestTimestamp = trimmed.length > 0 ? trimmed[trimmed.length - 1].time : null
 
-  return NextResponse.json({ queries: trimmed, oldestTimestamp })
+  return NextResponse.json({ queries: trimmed, oldestTimestamp, ...(failures.length && { failures }) })
 }

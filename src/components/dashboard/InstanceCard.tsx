@@ -1,18 +1,20 @@
 'use client'
 
-import { useState } from 'react'
+import { useState, useEffect } from 'react'
 import Link from 'next/link'
-import { Badge } from '@/components/ui/badge'
+import { useRouter } from 'next/navigation'
 import { Button } from '@/components/ui/button'
 import { Switch } from '@/components/ui/switch'
 import { cn } from '@/lib/utils'
-import { ExternalLink, RefreshCw } from 'lucide-react'
+import { RefreshCw } from 'lucide-react'
 import { toast } from 'sonner'
+import { api, errorText } from '@/lib/client/api'
 
 interface InstanceData {
   id: string
   name: string
   url: string
+  sshUsername?: string | null
   status: 'online' | 'offline'
   summary: {
     queries: { total: number; blocked: number; percent_blocked: number }
@@ -20,137 +22,168 @@ interface InstanceData {
   blocking: { blocking: 'enabled' | 'disabled' | 'unknown' } | null
 }
 
+export function StatusPill({ online }: { online: boolean }) {
+  return (
+    <span
+      className={cn(
+        'inline-flex shrink-0 items-center gap-1.5 rounded-full border px-2 py-0.5 text-xs font-medium',
+        online ? 'border-success/25 bg-success/10 text-success' : 'border-destructive/25 bg-destructive/10 text-destructive'
+      )}
+    >
+      <span className={cn('h-1.5 w-1.5 rounded-full', online ? 'bg-success' : 'bg-destructive')} aria-hidden />
+      {online ? 'Online' : 'Offline'}
+    </span>
+  )
+}
+
+function Metric({ label, value, className }: { label: string; value: string; className?: string }) {
+  return (
+    <div className="min-w-0">
+      <p className="text-xs text-muted-foreground">{label}</p>
+      <p className={cn('num truncate text-lg font-semibold tracking-tight', className)}>{value}</p>
+    </div>
+  )
+}
+
 export default function InstanceCard({ instance, onUpdate, role = 'admin' }: {
   instance: InstanceData
   onUpdate: () => void
   role?: 'admin' | 'viewer'
 }) {
+  const router = useRouter()
   const [togglingBlocking, setTogglingBlocking] = useState(false)
   const [updatingGravity, setUpdatingGravity] = useState(false)
+  const [unboundStatus, setUnboundStatus] = useState<'running' | 'stopped' | 'unknown'>('unknown')
+
+  useEffect(() => {
+    if (!instance.sshUsername || role !== 'admin') return
+    fetch(`/api/unbound/${instance.id}/status`)
+      .then((r) => (r.ok ? r.json() : {}))
+      .then((d: { status?: 'running' | 'stopped' | 'unknown' }) => setUnboundStatus(d.status ?? 'unknown'))
+      .catch(() => {})
+  }, [instance.id, instance.sshUsername, role])
 
   const isOnline = instance.status === 'online'
   const blockingEnabled = instance.blocking?.blocking === 'enabled'
 
+  // stop card-level navigation when interacting with inner controls
+  const stop = (e: React.MouseEvent) => e.stopPropagation()
+
   async function toggleBlocking(enabled: boolean) {
     setTogglingBlocking(true)
     try {
-      const res = await fetch(`/api/pihole/${instance.id}/blocking`, {
-        method: 'POST',
-        headers: { 'Content-Type': 'application/json' },
-        body: JSON.stringify({ enabled }),
-      })
-      if (!res.ok) throw new Error('Failed')
+      await api(`/api/pihole/${instance.id}/blocking`, { method: 'POST', json: { enabled } })
       toast.success(`Blocking ${enabled ? 'enabled' : 'disabled'} on ${instance.name}`)
       onUpdate()
-    } catch {
-      toast.error(`Failed to toggle blocking on ${instance.name}`)
+    } catch (err) {
+      toast.error(`Failed to toggle blocking on ${instance.name}: ${errorText(err)}`)
     } finally {
       setTogglingBlocking(false)
     }
   }
 
-  async function triggerGravity() {
+  async function triggerGravity(e: React.MouseEvent) {
+    e.stopPropagation()
     setUpdatingGravity(true)
+    const t = toast.loading(`Updating gravity on ${instance.name}…`)
     try {
-      await fetch(`/api/pihole/${instance.id}/gravity`, { method: 'POST' })
-      toast.success(`Gravity update triggered on ${instance.name}`)
-    } catch {
-      toast.error('Failed to trigger gravity update')
+      const data = await api<{ failedLists?: number; message?: string }>(`/api/pihole/${instance.id}/gravity`, { method: 'POST' })
+      if (data.failedLists) toast.warning(`${instance.name}: ${data.message}`, { id: t })
+      else toast.success(`Gravity updated on ${instance.name}`, { id: t })
+    } catch (err) {
+      toast.error(`Gravity failed on ${instance.name}: ${errorText(err)}`, { id: t })
     } finally {
       setUpdatingGravity(false)
     }
   }
 
+  const q = instance.summary?.queries
+
   return (
-    <div className={cn(
-      'glass-card p-5 space-y-4 animate-fade-in-up',
-      !isOnline && 'opacity-70'
-    )}>
-      <div className="flex items-start justify-between gap-2">
+    <div
+      onClick={() => router.push(`/instances/${instance.id}`)}
+      className="surface group flex cursor-pointer flex-col transition-colors hover:border-ring/40"
+    >
+      <div className="flex items-start justify-between gap-3 p-4 pb-3">
         <div className="min-w-0">
           <Link
             href={`/instances/${instance.id}`}
-            className="font-semibold text-sm hover:text-blue-400 transition-colors"
+            onClick={stop}
+            className="block truncate rounded-sm font-semibold transition-colors hover:text-primary"
           >
             {instance.name}
           </Link>
-          <p className="text-xs text-muted-foreground truncate">{instance.url}</p>
+          <p className="truncate font-mono text-xs text-muted-foreground" title={instance.url}>
+            {instance.url.replace(/^https?:\/\//, '')}
+          </p>
         </div>
-        <Badge
-          className={cn(
-            'shrink-0 text-xs',
-            isOnline
-              ? 'bg-green-500/15 text-green-400 border-green-500/25 glow-green-sm'
-              : 'bg-red-500/15 text-red-400 border-red-500/25'
-          )}
-        >
-          {isOnline ? 'Online' : 'Offline'}
-        </Badge>
+        <StatusPill online={isOnline} />
       </div>
 
-      {isOnline && instance.summary && (
-        <div className="grid grid-cols-3 gap-3">
-          <div className="text-center">
-            <p className="text-lg font-bold">{instance.summary.queries.total.toLocaleString()}</p>
-            <p className="text-xs text-muted-foreground">Queries</p>
+      <div className="px-4 pb-4">
+        {isOnline && q ? (
+          <div className="grid grid-cols-3 gap-3">
+            <Metric label="Queries" value={q.total.toLocaleString()} />
+            <Metric label="Blocked" value={q.blocked.toLocaleString()} />
+            <Metric label="Block rate" value={`${q.percent_blocked.toFixed(1)}%`} />
           </div>
-          <div className="text-center">
-            <p className="text-lg font-bold text-red-400">{instance.summary.queries.blocked.toLocaleString()}</p>
-            <p className="text-xs text-muted-foreground">Blocked</p>
-          </div>
-          <div className="text-center">
-            <p className="text-lg font-bold text-green-400">{instance.summary.queries.percent_blocked.toFixed(1)}%</p>
-            <p className="text-xs text-muted-foreground">Block %</p>
-          </div>
-        </div>
-      )}
+        ) : (
+          <p className="py-2 text-sm text-muted-foreground">{isOnline ? 'Waiting for the first poll…' : 'Instance unreachable'}</p>
+        )}
+      </div>
 
-      {!isOnline && (
-        <p className="text-sm text-muted-foreground text-center py-2">Instance unreachable</p>
-      )}
-
-      <div className="flex items-center justify-between pt-1 border-t border-border">
-        <div className="flex items-center gap-2">
+      <div className="mt-auto flex items-center justify-between gap-2 border-t border-border px-4 py-2.5">
+        <div className="flex items-center gap-2" onClick={stop}>
           {role === 'admin' ? (
-            <>
+            <label className="flex items-center gap-2 text-sm text-muted-foreground">
               <Switch
                 checked={blockingEnabled}
                 onCheckedChange={toggleBlocking}
                 disabled={!isOnline || togglingBlocking}
-                className="scale-90"
+                aria-label={`Ad blocking on ${instance.name}`}
               />
-              <span className="text-xs text-muted-foreground">Blocking</span>
-            </>
+              Blocking
+            </label>
           ) : (
-            <span className="text-xs text-muted-foreground">
-              Blocking: <span className={blockingEnabled ? 'text-green-400' : 'text-red-400'}>{blockingEnabled ? 'On' : 'Off'}</span>
+            <span className="text-sm text-muted-foreground">
+              Blocking{' '}
+              <span className={blockingEnabled ? 'text-success' : 'text-destructive'}>{blockingEnabled ? 'on' : 'off'}</span>
             </span>
           )}
         </div>
-        <div className="flex items-center gap-1">
-          {role === 'admin' && (
+        {role === 'admin' && (
+          <div className="flex items-center gap-1">
+            {instance.sshUsername && (
+              <Link
+                href={`/instances/${instance.id}/unbound`}
+                onClick={stop}
+                title="Unbound management"
+                className="inline-flex h-7 items-center gap-1.5 rounded-md px-2 text-xs text-muted-foreground transition-colors hover:bg-muted hover:text-foreground"
+              >
+                <span
+                  aria-hidden
+                  className={cn(
+                    'h-1.5 w-1.5 rounded-full',
+                    unboundStatus === 'running' ? 'bg-success' : unboundStatus === 'stopped' ? 'bg-destructive' : 'bg-muted-foreground/40'
+                  )}
+                />
+                Unbound
+                <span className="sr-only">: {unboundStatus}</span>
+              </Link>
+            )}
             <Button
               variant="ghost"
-              size="icon"
-              className="h-7 w-7 text-muted-foreground hover:text-foreground"
+              size="sm"
+              className="text-muted-foreground"
               onClick={triggerGravity}
               disabled={!isOnline || updatingGravity}
               title="Update gravity"
             >
-              <RefreshCw className={cn('h-3.5 w-3.5', updatingGravity && 'animate-spin')} />
+              <RefreshCw className={cn(updatingGravity && 'animate-spin')} />
+              Gravity
             </Button>
-          )}
-          <Link href={`/instances/${instance.id}`}>
-            <Button
-              variant="ghost"
-              size="icon"
-              className="h-7 w-7 text-muted-foreground hover:text-foreground"
-              title="View details"
-            >
-              <ExternalLink className="h-3.5 w-3.5" />
-            </Button>
-          </Link>
-        </div>
+          </div>
+        )}
       </div>
     </div>
   )

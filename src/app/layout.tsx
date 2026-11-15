@@ -1,23 +1,16 @@
 import type { Metadata } from 'next'
-import { Space_Grotesk, DM_Sans, Geist_Mono } from 'next/font/google'
+import { Geist, Geist_Mono } from 'next/font/google'
 import './globals.css'
 import { Toaster } from '@/components/ui/sonner'
 import { startPollingOnce } from '@/lib/polling/init'
+import { startUnboundPollingOnce } from '@/lib/unbound/init'
 import { Providers } from '@/components/providers'
 
 startPollingOnce()
+startUnboundPollingOnce()
 
-const spaceGrotesk = Space_Grotesk({
-  variable: '--font-heading',
-  subsets: ['latin'],
-  weight: ['400', '500', '600', '700'],
-})
-
-const dmSans = DM_Sans({
-  variable: '--font-sans',
-  subsets: ['latin'],
-  weight: ['400', '500', '700'],
-})
+// One family for UI and headings (headings differ by weight and size only).
+const geistSans = Geist({ variable: '--font-sans', subsets: ['latin'] })
 
 const geistMono = Geist_Mono({ variable: '--font-mono', subsets: ['latin'] })
 
@@ -31,7 +24,7 @@ export default function RootLayout({ children }: { children: React.ReactNode }) 
     <html
       lang="en"
       suppressHydrationWarning
-      className={`${spaceGrotesk.variable} ${dmSans.variable} ${geistMono.variable} h-full antialiased`}
+      className={`${geistSans.variable} ${geistMono.variable} h-full antialiased`}
     >
       <body className="min-h-full flex flex-col bg-background text-foreground">
         <Providers>

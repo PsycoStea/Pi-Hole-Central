@@ -1,109 +1,348 @@
 'use client'
 
+import { useEffect, useState, useCallback } from 'react'
 import Link from 'next/link'
 import { usePathname } from 'next/navigation'
 import { signOut } from 'next-auth/react'
-import {
-  LayoutDashboard,
-  Server,
-  Settings,
-  Bell,
-  LogOut,
-  ShieldCheck,
-  ChevronRight,
-  SlidersHorizontal,
-  ScrollText,
-  FilterX,
-  UserCog,
-  Users2,
-} from 'lucide-react'
+import { ChevronDown, LogOut, PanelLeftClose, PanelLeftOpen, Search, ShieldCheck } from 'lucide-react'
 import { cn } from '@/lib/utils'
-import { Button } from '@/components/ui/button'
 import { ThemeToggle } from '@/components/theme-toggle'
+import NotificationBell from '@/components/dashboard/NotificationBell'
+import { Tooltip, TooltipContent, TooltipProvider, TooltipTrigger } from '@/components/ui/tooltip'
+import { openCommandPalette } from '@/components/dashboard/command-palette-events'
+import { adminNav, viewerNav, isGroup, linkActive, type NavGroup, type NavLink, type NavEntry } from './nav-config'
 
-const baseNavItems = [
-  { href: '/', label: 'Overview', icon: LayoutDashboard },
-  { href: '/queries', label: 'Query Log', icon: ScrollText },
-  { href: '/settings/domains', label: 'Domains', icon: FilterX },
-  { href: '/settings/general', label: 'General', icon: SlidersHorizontal },
-  { href: '/settings/instances', label: 'Instances', icon: Server },
-  { href: '/settings/notifications', label: 'Notifications', icon: Bell },
-  { href: '/settings/alerts', label: 'Alerts', icon: Settings },
-  { href: '/settings/account', label: 'Account', icon: UserCog },
-]
+export type Role = 'admin' | 'viewer'
 
-const viewerNavItems = [
-  { href: '/', label: 'Overview', icon: LayoutDashboard },
-  { href: '/queries', label: 'Query Log', icon: ScrollText },
-]
+export function navFor(role: Role): NavEntry[] {
+  return role === 'admin' ? adminNav : viewerNav
+}
 
-export default function Sidebar({ user, role }: { user: string; role: 'admin' | 'viewer' }) {
-  const navItems = role === 'admin'
-    ? [...baseNavItems, { href: '/settings/users', label: 'Users', icon: Users2 }]
-    : viewerNavItems
+const iconButton =
+  'inline-flex h-8 w-8 items-center justify-center rounded-md text-muted-foreground transition-colors hover:bg-sidebar-accent hover:text-foreground cursor-pointer'
+
+/* ---------- brand ---------- */
+
+export function Brand({ compact = false }: { compact?: boolean }) {
+  return (
+    <Link href="/" className="flex min-w-0 items-center gap-2.5 rounded-md" aria-label="Pi-hole Central, overview">
+      <span className="flex h-7 w-7 shrink-0 items-center justify-center rounded-md bg-primary text-primary-foreground">
+        <ShieldCheck className="h-4 w-4" aria-hidden />
+      </span>
+      {!compact && <span className="truncate text-sm font-semibold tracking-tight">Pi-hole Central</span>}
+    </Link>
+  )
+}
+
+/* ---------- search button ---------- */
+
+export function SearchButton({ rail = false }: { rail?: boolean }) {
+  if (rail) {
+    return (
+      <Tooltip>
+        <TooltipTrigger render={<button onClick={openCommandPalette} aria-label="Search (⌘K)" className={cn(iconButton, 'h-9 w-full')} />}>
+          <Search className="h-4 w-4" />
+        </TooltipTrigger>
+        <TooltipContent side="right">Search · ⌘K</TooltipContent>
+      </Tooltip>
+    )
+  }
+  return (
+    <button
+      onClick={openCommandPalette}
+      className="flex h-9 w-full items-center gap-2 rounded-md border border-border bg-background px-2.5 text-sm text-muted-foreground transition-colors hover:border-ring/40 hover:text-foreground cursor-pointer"
+    >
+      <Search className="h-4 w-4 shrink-0" />
+      <span className="flex-1 text-left">Search…</span>
+      <kbd className="rounded border border-border bg-muted px-1.5 py-0.5 font-mono text-[10px] text-muted-foreground">⌘K</kbd>
+    </button>
+  )
+}
+
+/* ---------- nav list (shared by the desktop sidebar and the phone drawer) ---------- */
+
+export function NavList({
+  nav,
+  rail = false,
+  onExpandRail,
+}: {
+  nav: NavEntry[]
+  rail?: boolean
+  /** rail only: open the sidebar and that group */
+  onExpandRail?: (groupId: string) => void
+}) {
   const pathname = usePathname()
+  const [openGroups, setOpenGroups] = useState<Record<string, boolean>>({})
+
+  // auto-open the group that contains the active route
+  useEffect(() => {
+    for (const entry of nav) {
+      if (isGroup(entry) && entry.children.some((c) => linkActive(c, pathname))) {
+        setOpenGroups((prev) => (prev[entry.id] ? prev : { ...prev, [entry.id]: true }))
+      }
+    }
+  }, [pathname, nav])
 
   return (
-    <aside className="w-64 h-full glass border-r border-border flex flex-col shrink-0">
-      {/* Logo */}
-      <div className="p-6 border-b border-border">
-        <div className="flex items-center gap-3">
-          <div className="p-2 rounded-lg bg-blue-500/10 border border-blue-500/20 animate-pulse-glow">
-            <ShieldCheck className="h-5 w-5 text-blue-400" />
-          </div>
-          <div>
-            <p className="font-semibold text-sm gradient-text">Pi-Hole Central</p>
-            <p className="text-xs text-muted-foreground">Dashboard</p>
-          </div>
-        </div>
-      </div>
+    <ul className="space-y-0.5">
+      {nav.map((entry) =>
+        isGroup(entry) ? (
+          <li key={entry.id}>
+            <GroupItem
+              group={entry}
+              pathname={pathname}
+              rail={rail}
+              open={!!openGroups[entry.id]}
+              onToggle={() => setOpenGroups((p) => ({ ...p, [entry.id]: !p[entry.id] }))}
+              onExpandRail={() => {
+                setOpenGroups((p) => ({ ...p, [entry.id]: true }))
+                onExpandRail?.(entry.id)
+              }}
+            />
+          </li>
+        ) : (
+          <li key={entry.href}>
+            <LinkItem link={entry} active={linkActive(entry, pathname)} rail={rail} />
+          </li>
+        )
+      )}
+    </ul>
+  )
+}
 
-      {/* Navigation */}
-      <nav className="flex-1 p-4 space-y-1">
-        {navItems.map(({ href, label, icon: Icon }) => {
-          const active =
-            href === '/' ? pathname === '/' : pathname.startsWith(href)
-          return (
-            <Link
-              key={href}
-              href={href}
-              className={cn(
-                'flex items-center gap-3 px-3 py-2.5 rounded-lg text-sm group',
-                active
-                  ? 'relative bg-gradient-to-r from-blue-500/20 to-purple-500/10 text-blue-400 border border-blue-500/20'
-                  : 'text-muted-foreground hover:text-foreground hover:bg-accent hover:translate-x-0.5 transition-all duration-150'
-              )}
-            >
-              {active && (
-                <span className="absolute left-0 top-1/2 -translate-y-1/2 h-4 w-0.5 bg-blue-400 rounded-full" />
-              )}
-              <Icon className="h-4 w-4 shrink-0" />
-              <span className="flex-1">{label}</span>
-              {active && <ChevronRight className="h-3 w-3 opacity-50" />}
-            </Link>
-          )
-        })}
-      </nav>
+const itemBase =
+  'group relative flex items-center rounded-md text-sm transition-colors outline-none focus-visible:ring-2 focus-visible:ring-ring/60'
+const itemIdle = 'text-muted-foreground hover:bg-sidebar-accent hover:text-foreground'
+const itemActive = 'bg-sidebar-accent font-medium text-foreground'
 
-      {/* User + logout */}
-      <div className="p-4 border-t border-border">
-        <div className="flex items-center gap-3 mb-3 px-2">
-          <div className="h-7 w-7 rounded-full bg-gradient-to-br from-blue-400 to-purple-500 flex items-center justify-center text-xs font-bold uppercase text-white">
-            {user[0]}
-          </div>
-          <span className="text-sm text-foreground/70 flex-1 truncate">{user}</span>
-          <ThemeToggle />
-        </div>
-        <Button
-          variant="ghost"
-          size="sm"
-          className="w-full justify-start text-muted-foreground hover:text-foreground hover:bg-accent gap-2"
-          onClick={() => signOut({ callbackUrl: '/login' })}
+function LinkItem({ link, active, rail }: { link: NavLink; active: boolean; rail: boolean }) {
+  const { href, label, icon: Icon } = link
+  const content = (
+    <Link
+      href={href}
+      aria-current={active ? 'page' : undefined}
+      aria-label={rail ? label : undefined}
+      className={cn(itemBase, rail ? 'h-9 justify-center' : 'h-9 gap-2.5 px-2.5', active ? itemActive : itemIdle)}
+    >
+      <Icon className={cn('h-4 w-4 shrink-0', active && 'text-primary')} />
+      {!rail && <span className="flex-1 truncate">{label}</span>}
+    </Link>
+  )
+  if (!rail) return content
+  return (
+    <Tooltip>
+      <TooltipTrigger render={content as React.ReactElement} />
+      <TooltipContent side="right">{label}</TooltipContent>
+    </Tooltip>
+  )
+}
+
+function GroupItem({
+  group,
+  pathname,
+  rail,
+  open,
+  onToggle,
+  onExpandRail,
+}: {
+  group: NavGroup
+  pathname: string
+  rail: boolean
+  open: boolean
+  onToggle: () => void
+  onExpandRail: () => void
+}) {
+  const { label, icon: Icon, children } = group
+  const hasActiveChild = children.some((c) => linkActive(c, pathname))
+
+  if (rail) {
+    return (
+      <Tooltip>
+        <TooltipTrigger
+          render={
+            <button
+              onClick={onExpandRail}
+              aria-label={label}
+              className={cn(itemBase, 'h-9 w-full justify-center cursor-pointer', hasActiveChild ? itemActive : itemIdle)}
+            />
+          }
         >
-          <LogOut className="h-4 w-4" />
-          Sign out
-        </Button>
+          <Icon className={cn('h-4 w-4', hasActiveChild && 'text-primary')} />
+        </TooltipTrigger>
+        <TooltipContent side="right">{label}</TooltipContent>
+      </Tooltip>
+    )
+  }
+
+  return (
+    <>
+      <button
+        onClick={onToggle}
+        aria-expanded={open}
+        className={cn(itemBase, 'h-9 w-full gap-2.5 px-2.5 cursor-pointer', itemIdle, hasActiveChild && !open && 'text-foreground')}
+      >
+        <Icon className={cn('h-4 w-4 shrink-0', hasActiveChild && !open && 'text-primary')} />
+        <span className="flex-1 truncate text-left">{label}</span>
+        <ChevronDown
+          className={cn(
+            'h-3.5 w-3.5 shrink-0 transition-transform duration-[var(--dur-small)] ease-[var(--ease-out)] motion-reduce:transition-none',
+            open && 'rotate-180'
+          )}
+        />
+      </button>
+      {/* children: animated height via the grid-rows trick */}
+      <div
+        className={cn(
+          'grid transition-[grid-template-rows] duration-[var(--dur-menu)] ease-[var(--ease-out)] motion-reduce:transition-none',
+          open ? 'grid-rows-[1fr]' : 'grid-rows-[0fr]'
+        )}
+        inert={!open}
+      >
+        <div className="overflow-hidden">
+          <ul className="ml-[1.0625rem] mt-0.5 space-y-0.5 border-l border-sidebar-border pl-2">
+            {children.map((child) => {
+              const active = linkActive(child, pathname)
+              return (
+                <li key={child.href}>
+                  <Link
+                    href={child.href}
+                    aria-current={active ? 'page' : undefined}
+                    className={cn(itemBase, 'h-8 gap-2.5 px-2.5', active ? itemActive : itemIdle)}
+                  >
+                    <span className="flex-1 truncate">{child.label}</span>
+                  </Link>
+                </li>
+              )
+            })}
+          </ul>
+        </div>
       </div>
-    </aside>
+    </>
+  )
+}
+
+/* ---------- user footer ---------- */
+
+export function Avatar({ name }: { name: string }) {
+  return (
+    <span
+      aria-hidden
+      className="flex h-8 w-8 shrink-0 items-center justify-center rounded-full bg-primary/12 text-xs font-semibold uppercase text-primary"
+    >
+      {name[0]}
+    </span>
+  )
+}
+
+export function UserFooter({
+  user,
+  role,
+  rail = false,
+  showBell,
+}: {
+  user: string
+  role: Role
+  rail?: boolean
+  showBell: boolean
+}) {
+  const signOutBtn = (
+    <button onClick={() => signOut({ callbackUrl: '/login' })} aria-label="Sign out" className={iconButton}>
+      <LogOut className="h-4 w-4" />
+    </button>
+  )
+  if (rail) {
+    return (
+      <div className="flex flex-col items-center gap-1">
+        {showBell && role === 'admin' && <NotificationBell rail />}
+        <ThemeToggle />
+        <Tooltip>
+          <TooltipTrigger render={signOutBtn} />
+          <TooltipContent side="right">Sign out</TooltipContent>
+        </Tooltip>
+      </div>
+    )
+  }
+  return (
+    <div className="flex items-center gap-2">
+      <Avatar name={user} />
+      <div className="min-w-0 flex-1 leading-tight">
+        <p className="truncate text-sm font-medium">{user}</p>
+        <p className="text-xs capitalize text-muted-foreground">{role}</p>
+      </div>
+      {showBell && role === 'admin' && <NotificationBell />}
+      <ThemeToggle />
+      <Tooltip>
+        <TooltipTrigger render={signOutBtn} />
+        <TooltipContent side="top">Sign out</TooltipContent>
+      </Tooltip>
+    </div>
+  )
+}
+
+/* ---------- desktop sidebar ---------- */
+
+export default function Sidebar({ user, role, showBell }: { user: string; role: Role; showBell: boolean }) {
+  const nav = navFor(role)
+  const [collapsed, setCollapsed] = useState(false)
+
+  // restore collapse preference after mount (avoids SSR hydration mismatch)
+  useEffect(() => {
+    setCollapsed(localStorage.getItem('sidebar-collapsed') === '1')
+  }, [])
+
+  const setAndStore = useCallback((next: boolean) => {
+    setCollapsed(next)
+    try {
+      localStorage.setItem('sidebar-collapsed', next ? '1' : '0')
+    } catch {
+      /* private mode: preference just isn't remembered */
+    }
+  }, [])
+
+  return (
+    <TooltipProvider delay={150}>
+      <aside
+        className={cn(
+          // No width transition: animating width reflows the whole page every frame.
+          'hidden h-full shrink-0 flex-col border-r border-sidebar-border bg-sidebar lg:flex',
+          collapsed ? 'w-16' : 'w-60'
+        )}
+        data-collapsed={collapsed}
+        aria-label="Main navigation"
+      >
+        <div className={cn('flex h-14 items-center', collapsed ? 'justify-center px-2' : 'justify-between gap-2 pl-4 pr-2')}>
+          <Brand compact={collapsed} />
+          {!collapsed && (
+            <button onClick={() => setAndStore(true)} aria-label="Collapse sidebar" className={iconButton}>
+              <PanelLeftClose className="h-4 w-4" />
+            </button>
+          )}
+        </div>
+
+        <div className={cn('pb-2', collapsed ? 'px-2' : 'px-3')}>
+          <SearchButton rail={collapsed} />
+        </div>
+
+        <nav className={cn('flex-1 overflow-y-auto py-2', collapsed ? 'px-2' : 'px-3')}>
+          <NavList nav={nav} rail={collapsed} onExpandRail={() => setAndStore(false)} />
+        </nav>
+
+        <div className={cn('border-t border-sidebar-border py-3', collapsed ? 'px-2' : 'px-3')}>
+          <UserFooter user={user} role={role} rail={collapsed} showBell={showBell} />
+          {collapsed && (
+            <div className="mt-1 flex justify-center">
+              <Tooltip>
+                <TooltipTrigger
+                  render={<button onClick={() => setAndStore(false)} aria-label="Expand sidebar" className={iconButton} />}
+                >
+                  <PanelLeftOpen className="h-4 w-4" />
+                </TooltipTrigger>
+                <TooltipContent side="right">Expand</TooltipContent>
+              </Tooltip>
+            </div>
+          )}
+        </div>
+      </aside>
+    </TooltipProvider>
   )
 }

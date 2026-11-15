@@ -1,6 +1,6 @@
 'use client'
 
-import { useEffect, useState, useCallback } from 'react'
+import { useEffect, useState, useCallback, useRef } from 'react'
 import { useSession } from 'next-auth/react'
 import StatCard from '@/components/dashboard/StatCard'
 import InstanceCard from '@/components/dashboard/InstanceCard'
@@ -8,13 +8,18 @@ import BlocksHistoryChart from '@/components/dashboard/BlocksHistoryChart'
 import TopDomainsTable from '@/components/instance/TopDomainsTable'
 import TopClientsTable from '@/components/instance/TopClientsTable'
 import { Button } from '@/components/ui/button'
-import { Activity, Shield, ShieldOff, Server, RefreshCw, ShieldCheck, ShieldX } from 'lucide-react'
+import { Activity, Shield, ShieldOff, Server, RefreshCw, ShieldCheck, ShieldX, ChevronDown } from 'lucide-react'
+import Link from 'next/link'
+import PageHeader from '@/components/dashboard/PageHeader'
+import { DropdownMenu, DropdownMenuContent, DropdownMenuItem, DropdownMenuTrigger } from '@/components/ui/dropdown-menu'
 import { toast } from 'sonner'
+import { runBulkBlocking, runBulkGravity } from '@/lib/client/bulk-actions'
 
 interface InstanceData {
   id: string
   name: string
   url: string
+  sshUsername?: string | null
   status: 'online' | 'offline'
   summary: {
     queries: { total: number; blocked: number; percent_blocked: number }
@@ -52,6 +57,9 @@ export default function OverviewPage() {
   const [loading, setLoading] = useState(true)
   const [bulkBlocking, setBulkBlocking] = useState(false)
   const [bulkGravity, setBulkGravity] = useState(false)
+  // false while the live-update stream is down or silent; the server pushes
+  // every 30s, so 75s with nothing means the data on screen is stale.
+  const [live, setLive] = useState(true)
 
   const fetchSummary = useCallback(async () => {
     try {
@@ -95,24 +103,26 @@ export default function OverviewPage() {
     fetchTop()
   }, [fetchSummary, fetchBlocks, fetchTop])
 
+  useEffect(() => {
+    if (sessionStorage.getItem('update-toast-shown')) return
+    fetch('/api/update-status')
+      .then((r) => (r.ok ? r.json() : {}))
+      .then((data: { updates?: { name: string }[] }) => {
+        if (data.updates?.length) {
+          toast.info(
+            `Pi-Hole update available for: ${data.updates.map((u: { name: string }) => u.name).join(', ')}`,
+            { duration: 8000 }
+          )
+          sessionStorage.setItem('update-toast-shown', '1')
+        }
+      })
+      .catch(() => {})
+  }, [])
+
   const handleBulkBlocking = useCallback(async (enabled: boolean) => {
     setBulkBlocking(true)
     try {
-      const res = await fetch('/api/pihole/bulk/blocking', {
-        method: 'POST',
-        headers: { 'Content-Type': 'application/json' },
-        body: JSON.stringify({ enabled }),
-      })
-      const { results } = await res.json()
-      const failed = results.filter((r: { ok: boolean }) => !r.ok)
-      if (failed.length === 0) {
-        toast.success(`Blocking ${enabled ? 'enabled' : 'disabled'} on all instances`)
-      } else {
-        toast.error(`Failed on ${failed.length} instance(s): ${failed.map((r: { name: string }) => r.name).join(', ')}`)
-      }
-      fetchSummary()
-    } catch {
-      toast.error('Bulk blocking request failed')
+      if (await runBulkBlocking(enabled)) fetchSummary()
     } finally {
       setBulkBlocking(false)
     }
@@ -121,169 +131,207 @@ export default function OverviewPage() {
   const handleBulkGravity = useCallback(async () => {
     setBulkGravity(true)
     try {
-      const res = await fetch('/api/pihole/bulk/gravity', { method: 'POST' })
-      const { results } = await res.json()
-      const failed = results.filter((r: { ok: boolean }) => !r.ok)
-      if (failed.length === 0) {
-        toast.success('Gravity update triggered on all instances')
-      } else {
-        toast.error(`Failed on ${failed.length} instance(s): ${failed.map((r: { name: string }) => r.name).join(', ')}`)
-      }
-    } catch {
-      toast.error('Bulk gravity request failed')
+      await runBulkGravity()
     } finally {
       setBulkGravity(false)
     }
   }, [])
 
-  // SSE for live updates
+  // Live updates over SSE. The browser retries a dropped connection by itself,
+  // but gives up for good (readyState CLOSED) on a non-200 or redirect, e.g.
+  // while the app is restarting after a deploy. So: reconnect by hand with
+  // backoff when CLOSED, show a stale banner while down or silent, and
+  // refetch everything once the stream is back.
+  const fetchAllRef = useRef(() => {})
+  fetchAllRef.current = () => { fetchSummary(); fetchBlocks(); fetchTop() }
   useEffect(() => {
-    const es = new EventSource('/api/events')
-    es.onmessage = (e) => {
-      const data = JSON.parse(e.data) as SummaryData
-      setSummary(data)
+    let es: EventSource | null = null
+    let retry: ReturnType<typeof setTimeout> | null = null
+    let watchdog: ReturnType<typeof setTimeout> | null = null
+    let delay = 2000
+    let wasDown = false
+    let disposed = false
+
+    const armWatchdog = () => {
+      if (watchdog) clearTimeout(watchdog)
+      watchdog = setTimeout(() => { wasDown = true; setLive(false) }, 75_000)
     }
-    es.onerror = () => es.close()
-    return () => es.close()
+    const connect = () => {
+      if (disposed) return
+      es = new EventSource('/api/events')
+      armWatchdog()
+      es.onopen = () => {
+        delay = 2000
+        if (wasDown) { wasDown = false; fetchAllRef.current() }
+        setLive(true)
+      }
+      es.onmessage = (e) => {
+        armWatchdog()
+        setLive(true)
+        try {
+          setSummary(JSON.parse(e.data) as SummaryData)
+        } catch {
+          // Ignore malformed frames rather than throwing inside the callback.
+        }
+      }
+      es.onerror = () => {
+        wasDown = true
+        setLive(false)
+        if (es?.readyState === EventSource.CLOSED) {
+          es.close()
+          retry = setTimeout(connect, delay)
+          delay = Math.min(delay * 2, 30_000)
+        }
+      }
+    }
+    connect()
+    return () => {
+      disposed = true
+      if (retry) clearTimeout(retry)
+      if (watchdog) clearTimeout(watchdog)
+      es?.close()
+    }
   }, [])
 
   if (loading) {
     return (
-      <div className="flex items-center justify-center h-64">
-        <div className="text-muted-foreground text-sm animate-pulse">Loading...</div>
+      <div className="space-y-6" aria-busy="true">
+        <PageHeader title="Overview" description="Loading…" />
+        <div className="grid grid-cols-2 gap-3 sm:gap-4 lg:grid-cols-4">
+          {[0, 1, 2, 3].map((i) => (
+            <div key={i} className="surface h-[118px] animate-pulse motion-reduce:animate-none" />
+          ))}
+        </div>
       </div>
     )
   }
 
   const agg = summary?.aggregated
+  const instances = summary?.instances ?? []
 
   return (
     <div className="space-y-6">
-      <div className="flex items-start justify-between gap-4">
-        <div>
-          <h1 className="text-2xl font-bold gradient-text">Overview</h1>
-          <p className="text-sm text-muted-foreground mt-0.5">
-            {agg ? `${agg.instancesOnline} of ${agg.instancesTotal} instances online` : 'No instances configured'}
-          </p>
-        </div>
-        {role === 'admin' && (
-          <div className="flex items-center gap-2 flex-shrink-0">
-            <Button
-              size="sm"
-              variant="outline"
-              onClick={() => handleBulkBlocking(true)}
-              disabled={bulkBlocking}
-              className="text-green-400 border-green-400/30 hover:bg-green-400/10"
-            >
-              <ShieldCheck className="h-4 w-4 mr-1.5" />
-              Enable All
-            </Button>
-            <Button
-              size="sm"
-              variant="outline"
-              onClick={() => handleBulkBlocking(false)}
-              disabled={bulkBlocking}
-              className="text-red-400 border-red-400/30 hover:bg-red-400/10"
-            >
-              <ShieldX className="h-4 w-4 mr-1.5" />
-              Disable All
-            </Button>
-            <Button
-              size="sm"
-              variant="outline"
-              onClick={handleBulkGravity}
-              disabled={bulkGravity}
-              className="text-blue-400 border-blue-400/30 hover:bg-blue-400/10"
-            >
-              <RefreshCw className={`h-4 w-4 mr-1.5 ${bulkGravity ? 'animate-spin' : ''}`} />
-              Update Gravity
-            </Button>
-          </div>
-        )}
-      </div>
+      <PageHeader
+        title="Overview"
+        description={
+          <span className="inline-flex flex-wrap items-center gap-x-3 gap-y-1">
+            <span>{agg ? `${agg.instancesOnline} of ${agg.instancesTotal} instances online` : 'No instances configured'}</span>
+            {!live && (
+              <span role="status" className="inline-flex items-center gap-1.5 text-warning">
+                <span className="h-1.5 w-1.5 rounded-full bg-warning" aria-hidden />
+                Live updates paused, reconnecting…
+              </span>
+            )}
+          </span>
+        }
+        actions={
+          role === 'admin' && (
+            <>
+              <DropdownMenu>
+                <DropdownMenuTrigger render={<Button variant="outline" disabled={bulkBlocking} />}>
+                  <Shield />
+                  Blocking
+                  <ChevronDown className="text-muted-foreground" />
+                </DropdownMenuTrigger>
+                <DropdownMenuContent align="end" className="w-44">
+                  <DropdownMenuItem onClick={() => handleBulkBlocking(true)}>
+                    <ShieldCheck />
+                    Enable All
+                  </DropdownMenuItem>
+                  <DropdownMenuItem variant="destructive" onClick={() => handleBulkBlocking(false)}>
+                    <ShieldX />
+                    Disable All
+                  </DropdownMenuItem>
+                </DropdownMenuContent>
+              </DropdownMenu>
+              <Button onClick={handleBulkGravity} disabled={bulkGravity}>
+                <RefreshCw className={bulkGravity ? 'animate-spin' : undefined} />
+                Update Gravity
+              </Button>
+            </>
+          )
+        }
+      />
 
-      {/* Summary cards */}
-      <div className="grid grid-cols-2 lg:grid-cols-4 gap-4">
+      {/* Summary */}
+      <div className="grid grid-cols-2 gap-3 sm:gap-4 lg:grid-cols-4">
         <StatCard
-          title="Total Queries"
+          title="Total queries"
           value={agg?.totalQueries.toLocaleString() ?? '—'}
-          subtitle="Today across all instances"
+          subtitle="Today, all instances"
           icon={Activity}
-          color="blue"
-          delay={0}
+          tone="primary"
         />
         <StatCard
           title="Blocked"
           value={agg?.totalBlocked.toLocaleString() ?? '—'}
-          subtitle="Ads & trackers blocked"
+          subtitle="Ads and trackers"
           icon={ShieldOff}
-          color="red"
-          delay={60}
+          tone="destructive"
         />
         <StatCard
-          title="Block Rate"
+          title="Block rate"
           value={agg ? `${agg.blockPct.toFixed(1)}%` : '—'}
-          subtitle="Average across online instances"
+          subtitle="Online instances"
           icon={Shield}
-          color="green"
-          delay={120}
+          tone="success"
         />
         <StatCard
           title="Instances"
           value={agg ? `${agg.instancesOnline}/${agg.instancesTotal}` : '—'}
           subtitle="Online"
           icon={Server}
-          color="purple"
-          delay={180}
         />
       </div>
 
-      {/* Instance grid */}
-      {summary && summary.instances.length > 0 ? (
-        <div>
-          <h2 className="text-sm font-medium text-muted-foreground uppercase tracking-wider mb-3">
-            Instances
-          </h2>
-          <div className="grid grid-cols-1 md:grid-cols-2 xl:grid-cols-3 gap-4">
-            {summary.instances.map((inst) => (
+      {/* Instances */}
+      <section aria-labelledby="instances-heading" className="space-y-3">
+        <div className="flex items-center justify-between gap-2">
+          <h2 id="instances-heading" className="text-sm font-semibold">Instances</h2>
+          {role === 'admin' && (
+            <Link href="/settings/instances" className="rounded-sm text-sm text-muted-foreground transition-colors hover:text-foreground">
+              Manage
+            </Link>
+          )}
+        </div>
+        {instances.length > 0 ? (
+          <div className="grid grid-cols-1 gap-3 sm:grid-cols-2 sm:gap-4 xl:grid-cols-3">
+            {instances.map((inst) => (
               <InstanceCard key={inst.id} instance={inst} onUpdate={fetchSummary} role={role as 'admin' | 'viewer'} />
             ))}
           </div>
-        </div>
-      ) : (
-        <div className="glass-card p-12 text-center space-y-2">
-          <Server className="h-10 w-10 text-muted-foreground/50 mx-auto" />
-          <p className="text-muted-foreground">No instances configured</p>
-          <p className="text-sm text-muted-foreground">
-            Go to{' '}
-            <a href="/settings/instances" className="text-blue-400 hover:underline">
-              Settings → Instances
-            </a>{' '}
-            to add your first Pi-Hole.
-          </p>
-        </div>
-      )}
+        ) : (
+          <div className="surface flex flex-col items-center gap-2 px-6 py-12 text-center">
+            <Server className="h-8 w-8 text-muted-foreground/60" aria-hidden />
+            <p className="font-medium">No instances yet</p>
+            <p className="text-sm text-muted-foreground">
+              Add your first Pi-hole under{' '}
+              <Link href="/settings/instances" className="text-primary hover:underline">
+                Instances
+              </Link>
+              .
+            </p>
+          </div>
+        )}
+      </section>
 
-      {/* Blocks history chart */}
-      <BlocksHistoryChart data={blocks} label="Blocked queries — last 24 hours (10-min intervals)" />
+      {/* Activity */}
+      <BlocksHistoryChart data={blocks} label="Queries, last 24 hours" />
 
-      {/* Aggregated top tables */}
-      {(topDomains.length > 0 || topClients.length > 0) && (
-        <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
-          <div className="glass-card p-4">
-            <h2 className="text-sm font-medium text-muted-foreground uppercase tracking-wider mb-3">
-              Top Blocked Domains
-            </h2>
+      <div className="grid grid-cols-1 gap-3 sm:gap-4 lg:grid-cols-2">
+        <section className="surface p-4 sm:p-5">
+          <h2 className="mb-1 text-sm font-semibold">Top domains</h2>
+          <div className="max-h-[360px] overflow-y-auto">
             <TopDomainsTable domains={topDomains} />
           </div>
-          <div className="glass-card p-4">
-            <h2 className="text-sm font-medium text-muted-foreground uppercase tracking-wider mb-3">
-              Top Clients
-            </h2>
+        </section>
+        <section className="surface p-4 sm:p-5">
+          <h2 className="mb-1 text-sm font-semibold">Top clients</h2>
+          <div className="max-h-[360px] overflow-y-auto">
             <TopClientsTable clients={topClients} />
           </div>
-        </div>
-      )}
+        </section>
+      </div>
     </div>
   )
 }

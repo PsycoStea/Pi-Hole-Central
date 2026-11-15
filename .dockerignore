@@ -1,0 +1,21 @@
+# Keep secrets, live data and dev-only trees out of the build context.
+# Compose supplies every runtime key (see docker-compose.yml `environment:`), so
+# no .env file belongs in the image: Next copied it into the standalone output
+# and it ended up at /app/.env (root-readable) in the running container.
+.env
+.env.*
+!.env.example
+data/
+.git/
+.gitignore
+e2e/
+test-results/
+playwright-report/
+node_modules/
+.next/
+*.pem
+*.key
+*.db
+*.db-*
+tsconfig.tsbuildinfo
+docs/

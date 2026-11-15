@@ -1,11 +1,16 @@
 'use client'
 
-import { useEffect, useState, useCallback } from 'react'
+import { useEffect, useState, useCallback, useRef } from 'react'
 import { Button } from '@/components/ui/button'
 import { Switch } from '@/components/ui/switch'
-import { FilterX, Plus, Trash2, RefreshCw } from 'lucide-react'
+import { Plus, Trash2, RefreshCw, Lock } from 'lucide-react'
 import { toast } from 'sonner'
+import { api, errorText } from '@/lib/client/api'
 import { cn } from '@/lib/utils'
+import TempAllowPanel from '@/components/dashboard/TempAllowPanel'
+import ReplicaNotice from '@/components/dashboard/ReplicaNotice'
+import { usePrimaryNode, isEditableNode } from '@/lib/client/primary'
+import PageHeader from '@/components/dashboard/PageHeader'
 
 interface Domain {
   id: number
@@ -28,6 +33,7 @@ interface Group {
 interface Instance {
   id: string
   name: string
+  status?: 'online' | 'offline'
 }
 
 type ListType = 'allow' | 'deny'
@@ -52,6 +58,14 @@ export default function DomainsPage() {
 
   const isAllInstances = selectedInstance === '__all__'
 
+  // nebula-sync primary: when set, only it is editable (replicas are overwritten from it).
+  const primary = usePrimaryNode()
+  const primaryId = primary.primaryId
+  const primaryOnline = instances.find((i) => i.id === primaryId)?.status !== 'offline'
+  // Nothing is editable until the primary setting has loaded: treating "not
+  // known yet" as "no primary" let an early click write to every node.
+  const canAdd = primary.loaded && (!primaryId || ((isAllInstances || selectedInstance === primaryId) && primaryOnline))
+
   // Load instances
   useEffect(() => {
     fetch('/api/stats/summary')
@@ -60,15 +74,31 @@ export default function DomainsPage() {
         const insts: Instance[] = (data.instances ?? []).map((i: Instance) => ({
           id: i.id,
           name: i.name,
+          status: i.status,
         }))
         setInstances(insts)
-        setSelectedInstance(insts.length > 1 ? '__all__' : (insts[0]?.id ?? ''))
       })
       .catch(() => {})
   }, [])
 
+  // Initial selection, once instances and the primary setting are both known:
+  // open on the primary (the editable node) when one is chosen.
+  const selectionInitialised = useRef(false)
+  useEffect(() => {
+    if (selectionInitialised.current || instances.length === 0 || !primary.loaded) return
+    selectionInitialised.current = true
+    // Never override a choice the user already made while these were loading.
+    if (selectedInstance) return
+    if (primaryId && instances.some((i) => i.id === primaryId)) setSelectedInstance(primaryId)
+    else setSelectedInstance(instances.length > 1 ? '__all__' : instances[0].id)
+  }, [instances, primary.loaded, primaryId, selectedInstance])
+
   // Load domains
+  // Only the latest request may update the list: switching node or view while a
+  // slower earlier request is in flight must not let its response land last.
+  const fetchSeq = useRef(0)
   const fetchDomains = useCallback(async () => {
+    const seq = ++fetchSeq.current
     if (!selectedInstance) return
     setLoading(true)
     try {
@@ -78,11 +108,12 @@ export default function DomainsPage() {
       const res = await fetch(url)
       if (!res.ok) return
       const data = await res.json()
+      if (seq !== fetchSeq.current) return
       setDomains(data.domains ?? [])
     } catch {
       // ignore
     } finally {
-      setLoading(false)
+      if (seq === fetchSeq.current) setLoading(false)
     }
   }, [selectedInstance, activeTab, isAllInstances])
 
@@ -106,7 +137,11 @@ export default function DomainsPage() {
   // When the add form opens, initialize targets and load groups
   useEffect(() => {
     if (!showAddForm) return
-    if (isAllInstances) {
+    if (primaryId) {
+      // Adds always go to the primary; nebula-sync copies them to the replicas.
+      setTargetInstances([primaryId])
+      fetchGroups(primaryId)
+    } else if (isAllInstances) {
       setTargetInstances(instances.map((i) => i.id))
       setGroups([])
     } else {
@@ -114,7 +149,7 @@ export default function DomainsPage() {
       fetchGroups(selectedInstance)
     }
     setNewGroups([0])
-  }, [showAddForm, isAllInstances, selectedInstance, instances, fetchGroups])
+  }, [showAddForm, isAllInstances, selectedInstance, instances, fetchGroups, primaryId])
 
   // In All view: reload groups when target narrows to one instance
   useEffect(() => {
@@ -140,7 +175,7 @@ export default function DomainsPage() {
   async function handleAdd() {
     if (!newDomain.trim()) return
     setAdding(true)
-    const targets = isAllInstances ? targetInstances : [selectedInstance]
+    const targets = primaryId ? [primaryId] : isAllInstances ? targetInstances : [selectedInstance]
     if (targets.length === 0) { toast.error('Select at least one instance'); setAdding(false); return }
 
     const groupsToUse = groups.length > 0 && targetInstances.length === 1 ? newGroups : [0]
@@ -169,50 +204,48 @@ export default function DomainsPage() {
     )
 
     if (errors.length > 0) {
-      toast.error(`Failed: ${errors.join(', ')}`)
+      // Keep the form filled in so a fix-and-retry doesn't mean retyping.
+      toast.error(`Failed: ${errors.join(', ')}`, { duration: 10000 })
     } else {
-      toast.success(`Domain added to ${targets.length > 1 ? `${targets.length} instances` : 'instance'}`)
+      toast.success(primaryId
+        ? `Domain added to ${primary.primaryName ?? 'the primary'}; nebula-sync copies it to the other nodes within ~15 min`
+        : `Domain added to ${targets.length > 1 ? `${targets.length} instances` : 'instance'}`)
+      setNewDomain('')
+      setNewComment('')
+      setNewKind('exact')
+      setNewEnabled(true)
+      setNewGroups([0])
+      setShowAddForm(false)
     }
-
-    setNewDomain('')
-    setNewComment('')
-    setNewKind('exact')
-    setNewEnabled(true)
-    setNewGroups([0])
-    setShowAddForm(false)
     fetchDomains()
     setAdding(false)
   }
 
   async function handleDelete(domain: Domain) {
     const instanceId = domain.instanceId ?? selectedInstance
-    const res = await fetch(`/api/pihole/${instanceId}/domains`, {
-      method: 'DELETE',
-      headers: { 'Content-Type': 'application/json' },
-      body: JSON.stringify({ list: activeTab, kind: domain.kind, id: domain.id }),
-    })
-    if (res.ok) {
+    if (!window.confirm(`Remove ${domain.domain} from the ${activeTab}list?`)) return
+    try {
+      await api(`/api/pihole/${instanceId}/domains`, {
+        method: 'DELETE',
+        json: { list: activeTab, kind: domain.kind, domain: domain.domain },
+      })
       toast.success('Domain removed')
-      fetchDomains()
-    } else {
-      toast.error('Failed to remove domain')
+    } catch (err) {
+      toast.error(`Failed to remove domain: ${errorText(err)}`)
     }
+    fetchDomains()
   }
 
   const showGroupSelector = groups.length > 0 && (!isAllInstances || targetInstances.length === 1)
 
   return (
     <div className="space-y-6">
-      <div className="flex items-center gap-3">
-        <FilterX className="h-6 w-6 text-muted-foreground" />
-        <div>
-          <h1 className="text-2xl font-bold">Domains</h1>
-          <p className="text-sm text-muted-foreground mt-0.5">Manage allowlists and denylists</p>
-        </div>
-      </div>
+      <PageHeader title="Domains" description="Manage allowlists and denylists" />
+
+      <TempAllowPanel instances={instances} selectedInstance={selectedInstance} />
 
       {/* Controls */}
-      <div className="glass-card p-4">
+      <div className="surface p-4">
         <div className="flex flex-wrap gap-3 items-end">
           {/* Instance selector */}
           <div className="flex flex-col gap-1">
@@ -220,11 +253,11 @@ export default function DomainsPage() {
             <select
               value={selectedInstance}
               onChange={(e) => { setSelectedInstance(e.target.value); setShowAddForm(false) }}
-              className="bg-white/5 border border-border rounded-md px-3 py-1.5 text-sm text-white focus:outline-none focus:ring-1 focus:ring-white/20"
+              className="bg-foreground/5 border border-border rounded-md px-3 py-1.5 text-sm text-foreground focus:outline-none focus:ring-1 focus:ring-foreground/20"
             >
-              <option value="__all__" className="bg-gray-900">All Instances</option>
+              <option value="__all__">All Instances</option>
               {instances.map((inst) => (
-                <option key={inst.id} value={inst.id} className="bg-gray-900">{inst.name}</option>
+                <option key={inst.id} value={inst.id}>{inst.name}</option>
               ))}
             </select>
           </div>
@@ -240,8 +273,8 @@ export default function DomainsPage() {
                   className={cn(
                     'px-4 py-1.5 rounded-md text-sm font-medium transition-colors cursor-pointer capitalize',
                     activeTab === t
-                      ? t === 'allow' ? 'bg-green-500/20 text-green-400' : 'bg-red-500/20 text-red-400'
-                      : 'bg-white/5 text-muted-foreground hover:bg-white/10'
+                      ? t === 'allow' ? 'bg-success/20 text-success' : 'bg-destructive/20 text-destructive'
+                      : 'bg-foreground/5 text-muted-foreground hover:bg-foreground/10'
                   )}
                 >
                   {t}list
@@ -256,17 +289,27 @@ export default function DomainsPage() {
               <RefreshCw className={cn('h-3.5 w-3.5', loading && 'animate-spin')} />
               Refresh
             </Button>
-            <Button size="sm" onClick={() => setShowAddForm((v) => !v)} className="gap-1.5">
-              <Plus className="h-3.5 w-3.5" />
-              Add Domain
-            </Button>
+            {canAdd && (
+              <Button size="sm" onClick={() => setShowAddForm((v) => !v)} className="gap-1.5">
+                <Plus className="h-3.5 w-3.5" />
+                Add Domain
+              </Button>
+            )}
           </div>
         </div>
       </div>
 
+      <ReplicaNotice
+        primary={primary}
+        selectedInstance={selectedInstance}
+        primaryOnline={primaryOnline}
+        thing="domains"
+        onSwitchToPrimary={primaryId ? () => { setSelectedInstance(primaryId); setShowAddForm(false) } : undefined}
+      />
+
       {/* Add Domain Form */}
-      {showAddForm && (
-        <div className="glass-card p-4 space-y-4">
+      {showAddForm && canAdd && (
+        <div className="surface p-4 space-y-4">
           <h3 className="text-sm font-medium text-foreground/70">
             Add to {activeTab}list
           </h3>
@@ -281,7 +324,7 @@ export default function DomainsPage() {
                 onChange={(e) => setNewDomain(e.target.value)}
                 onKeyDown={(e) => e.key === 'Enter' && handleAdd()}
                 placeholder="e.g. ads.example.com"
-                className="bg-white/5 border border-border rounded-md px-3 py-1.5 text-sm text-white placeholder:text-muted-foreground/40 focus:outline-none focus:ring-1 focus:ring-white/20 w-56"
+                className="bg-foreground/5 border border-border rounded-md px-3 py-1.5 text-sm text-foreground placeholder:text-muted-foreground/40 focus:outline-none focus:ring-1 focus:ring-foreground/20 w-56"
                 autoFocus
               />
             </div>
@@ -296,7 +339,7 @@ export default function DomainsPage() {
                     onClick={() => setNewKind(k)}
                     className={cn(
                       'px-3 py-1.5 rounded-md text-sm capitalize transition-colors cursor-pointer',
-                      newKind === k ? 'bg-white/15 text-white' : 'bg-white/5 text-muted-foreground hover:bg-white/10'
+                      newKind === k ? 'bg-foreground/15 text-foreground' : 'bg-foreground/5 text-muted-foreground hover:bg-foreground/10'
                     )}
                   >
                     {k}
@@ -313,7 +356,7 @@ export default function DomainsPage() {
                 value={newComment}
                 onChange={(e) => setNewComment(e.target.value)}
                 placeholder="Optional note"
-                className="bg-white/5 border border-border rounded-md px-3 py-1.5 text-sm text-white placeholder:text-muted-foreground/40 focus:outline-none focus:ring-1 focus:ring-white/20 w-44"
+                className="bg-foreground/5 border border-border rounded-md px-3 py-1.5 text-sm text-foreground placeholder:text-muted-foreground/40 focus:outline-none focus:ring-1 focus:ring-foreground/20 w-44"
               />
             </div>
 
@@ -321,7 +364,7 @@ export default function DomainsPage() {
             <div className="flex flex-col gap-1">
               <label className="text-xs text-muted-foreground">Enabled</label>
               <div className="flex items-center h-[34px]">
-                <Switch checked={newEnabled} onCheckedChange={setNewEnabled} />
+                <Switch checked={newEnabled} onCheckedChange={setNewEnabled} aria-label="Enabled" />
               </div>
             </div>
 
@@ -337,8 +380,8 @@ export default function DomainsPage() {
                       className={cn(
                         'px-2.5 py-1 rounded text-xs transition-colors cursor-pointer',
                         newGroups.includes(g.id)
-                          ? 'bg-blue-500/20 text-blue-300'
-                          : 'bg-white/5 text-muted-foreground hover:bg-white/10'
+                          ? 'bg-primary/20 text-primary'
+                          : 'bg-foreground/5 text-muted-foreground hover:bg-foreground/10'
                       )}
                     >
                       {g.name}
@@ -349,8 +392,8 @@ export default function DomainsPage() {
             )}
           </div>
 
-          {/* Instance checkboxes (All view only) */}
-          {isAllInstances && (
+          {/* Instance checkboxes (All view only, and only while no primary is chosen) */}
+          {isAllInstances && !primaryId && (
             <div className="flex flex-col gap-1.5">
               <label className="text-xs text-muted-foreground">Add to instances</label>
               <div className="flex flex-wrap gap-2">
@@ -360,7 +403,7 @@ export default function DomainsPage() {
                       targetInstances.length === instances.length ? [] : instances.map((i) => i.id)
                     )
                   }
-                  className="px-2.5 py-1 rounded text-xs bg-white/10 text-foreground/60 hover:bg-white/15 cursor-pointer transition-colors"
+                  className="px-2.5 py-1 rounded text-xs bg-foreground/10 text-foreground/60 hover:bg-foreground/15 cursor-pointer transition-colors"
                 >
                   {targetInstances.length === instances.length ? 'Deselect All' : 'Select All'}
                 </button>
@@ -371,8 +414,8 @@ export default function DomainsPage() {
                     className={cn(
                       'px-2.5 py-1 rounded text-xs transition-colors cursor-pointer',
                       targetInstances.includes(inst.id)
-                        ? 'bg-blue-500/20 text-blue-300'
-                        : 'bg-white/5 text-muted-foreground hover:bg-white/10'
+                        ? 'bg-primary/20 text-primary'
+                        : 'bg-foreground/5 text-muted-foreground hover:bg-foreground/10'
                     )}
                   >
                     {inst.name}
@@ -395,7 +438,7 @@ export default function DomainsPage() {
       )}
 
       {/* Domain table */}
-      <div className="glass-card overflow-hidden">
+      <div className="surface overflow-hidden">
         {loading ? (
           <div className="p-8 text-center text-muted-foreground text-sm animate-pulse">Loading domains...</div>
         ) : domains.length === 0 ? (
@@ -404,7 +447,7 @@ export default function DomainsPage() {
           </div>
         ) : (
           <div className="overflow-x-auto">
-            <table className="w-full text-sm">
+            <table className="w-full min-w-[40rem] text-sm">
               <thead>
                 <tr className="border-b border-border">
                   {isAllInstances && (
@@ -422,22 +465,22 @@ export default function DomainsPage() {
                 {domains.map((d, i) => (
                   <tr
                     key={`${d.id}-${d.instanceId ?? ''}-${i}`}
-                    className="border-b border-border hover:bg-white/3 transition-colors"
+                    className="border-b border-border hover:bg-foreground/3 transition-colors"
                   >
                     {isAllInstances && (
                       <td className="px-4 py-2.5">
-                        <span className="inline-block px-2 py-0.5 rounded text-xs bg-white/8 text-foreground/60 whitespace-nowrap">
+                        <span className="inline-block px-2 py-0.5 rounded text-xs bg-foreground/8 text-foreground/60 whitespace-nowrap">
                           {d.instanceName ?? d.instanceId ?? '—'}
                         </span>
                       </td>
                     )}
-                    <td className="px-4 py-2.5 text-white font-mono text-xs">{d.domain}</td>
+                    <td className="px-4 py-2.5 text-foreground font-mono text-xs">{d.domain}</td>
                     <td className="px-4 py-2.5">
                       <span className={cn(
                         'inline-block px-2 py-0.5 rounded text-xs font-medium',
                         d.kind === 'regex'
-                          ? 'bg-purple-500/15 text-purple-400'
-                          : 'bg-white/8 text-muted-foreground'
+                          ? 'bg-primary/15 text-primary'
+                          : 'bg-foreground/8 text-muted-foreground'
                       )}>
                         {d.kind}
                       </span>
@@ -448,11 +491,11 @@ export default function DomainsPage() {
                     <td className="px-4 py-2.5">
                       <span className={cn(
                         'inline-flex items-center gap-1.5 text-xs',
-                        d.enabled ? 'text-green-400' : 'text-muted-foreground'
+                        d.enabled ? 'text-success' : 'text-muted-foreground'
                       )}>
                         <span className={cn(
                           'h-1.5 w-1.5 rounded-full',
-                          d.enabled ? 'bg-green-400' : 'bg-white/20'
+                          d.enabled ? 'bg-success' : 'bg-foreground/20'
                         )} />
                         {d.enabled ? 'enabled' : 'disabled'}
                       </span>
@@ -461,12 +504,22 @@ export default function DomainsPage() {
                       {d.groups?.join(', ') ?? '—'}
                     </td>
                     <td className="px-4 py-2.5 text-right">
-                      <button
-                        onClick={() => handleDelete(d)}
-                        className="p-1 rounded text-muted-foreground hover:text-red-400 hover:bg-red-500/10 transition-colors cursor-pointer"
-                      >
-                        <Trash2 className="h-3.5 w-3.5" />
-                      </button>
+                      {primary.loaded && isEditableNode(primaryId, d.instanceId ?? selectedInstance) && primaryOnline ? (
+                        <button
+                          onClick={() => handleDelete(d)}
+                          aria-label={`Remove ${d.domain}`}
+                          className="p-1 rounded text-muted-foreground hover:text-destructive hover:bg-destructive/10 transition-colors cursor-pointer"
+                        >
+                          <Trash2 className="h-3.5 w-3.5" />
+                        </button>
+                      ) : (
+                        <span
+                          title={`Synced from ${primary.primaryName ?? 'the primary'} by nebula-sync; change it there`}
+                          className="inline-flex p-1 text-muted-foreground/50"
+                        >
+                          <Lock className="h-3.5 w-3.5" />
+                        </span>
+                      )}
                     </td>
                   </tr>
                 ))}

@@ -12,6 +12,9 @@
 
 # testing
 /coverage
+/test-results/
+/playwright-report/
+e2e/.auth.json
 
 # next.js
 /.next/
@@ -22,6 +25,8 @@
 
 # misc
 .DS_Store
+._*
+.AppleDouble
 *.pem
 
 # debug
@@ -43,3 +48,6 @@ yarn-error.log*
 # typescript
 *.tsbuildinfo
 next-env.d.ts
+
+# written by scripts/deploy.sh: the commit currently live on the LXC
+/.deployed-sha

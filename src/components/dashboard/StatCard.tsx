@@ -5,53 +5,37 @@ interface StatCardProps {
   title: string
   value: string | number
   subtitle?: string
+  badge?: string
   icon: LucideIcon
-  color?: 'blue' | 'green' | 'red' | 'purple'
+  /** Tints the icon only; the number stays in the foreground colour. */
+  tone?: 'primary' | 'success' | 'destructive' | 'muted'
   className?: string
-  delay?: number
 }
 
-const colors = {
-  blue:   'text-blue-400 bg-gradient-to-br from-blue-500/15 to-blue-600/5 border-blue-500/20',
-  green:  'text-green-400 bg-gradient-to-br from-green-500/15 to-green-600/5 border-green-500/20',
-  red:    'text-red-400 bg-gradient-to-br from-red-500/15 to-red-600/5 border-red-500/20',
-  purple: 'text-purple-400 bg-gradient-to-br from-purple-500/15 to-purple-600/5 border-purple-500/20',
+const tones = {
+  primary: 'text-primary bg-primary/10',
+  success: 'text-success bg-success/10',
+  destructive: 'text-destructive bg-destructive/10',
+  muted: 'text-muted-foreground bg-muted',
 }
 
-const glows = {
-  blue:   'hover:glow-blue-sm',
-  green:  'hover:glow-green-sm',
-  red:    'hover:glow-red-sm',
-  purple: 'hover:glow-purple-sm',
-}
-
-export default function StatCard({
-  title,
-  value,
-  subtitle,
-  icon: Icon,
-  color = 'blue',
-  className,
-  delay,
-}: StatCardProps) {
+export default function StatCard({ title, value, subtitle, badge, icon: Icon, tone = 'muted', className }: StatCardProps) {
   return (
-    <div
-      className={cn(
-        'glass-card p-5 space-y-3 transition-all duration-200 animate-fade-in-up',
-        glows[color],
-        className
-      )}
-      style={delay != null ? { animationDelay: `${delay}ms` } : undefined}
-    >
-      <div className="flex items-center justify-between">
-        <p className="text-sm text-muted-foreground font-medium">{title}</p>
-        <div className={cn('p-2 rounded-lg border', colors[color])}>
-          <Icon className="h-4 w-4" />
-        </div>
+    <div className={cn('surface flex flex-col gap-3 p-4 sm:p-5', className)}>
+      <div className="flex items-center justify-between gap-2">
+        <p className="truncate text-sm font-medium text-muted-foreground">{title}</p>
+        <span className={cn('flex h-7 w-7 shrink-0 items-center justify-center rounded-md', tones[tone])}>
+          <Icon className="h-4 w-4" aria-hidden />
+        </span>
       </div>
-      <div>
-        <p className="text-2xl font-bold tracking-tight">{value}</p>
-        {subtitle && <p className="text-xs text-muted-foreground mt-0.5">{subtitle}</p>}
+      <div className="min-w-0">
+        <p className="num truncate text-2xl font-semibold tracking-tight sm:text-[1.75rem] sm:leading-9">{value}</p>
+        {subtitle && <p className="mt-0.5 truncate text-xs text-muted-foreground">{subtitle}</p>}
+        {badge && (
+          <span className="mt-1.5 inline-flex items-center rounded-full border border-warning/25 bg-warning/10 px-2 py-0.5 text-[10px] font-medium text-warning">
+            {badge}
+          </span>
+        )}
       </div>
     </div>
   )

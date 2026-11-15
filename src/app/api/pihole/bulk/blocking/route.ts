@@ -1,3 +1,4 @@
+import { auditedNodeCall } from '@/lib/audit'
 import { requireAdmin } from '@/lib/auth-guard'
 import { db } from '@/lib/db'
 import { instances } from '@/lib/db/schema'
@@ -20,10 +21,13 @@ export async function POST(req: Request) {
     where: eq(instances.enabled, true),
   })
 
-  const results = await Promise.allSettled(
-    activeInstances.map((inst) => piholeClient.setBlocking(inst.id, enabled))
+  const results = await auditedNodeCall(
+    'blocking.toggle_all',
+    'all',
+    enabled ? 'enabled' : 'disabled',
+    () => Promise.allSettled(activeInstances.map((inst) => piholeClient.setBlocking(inst.id, enabled))),
+    (rs) => activeInstances.map((inst, i) => `${inst.name}:${rs[i].status === 'fulfilled' ? 'ok' : 'failed'}`).join(', ')
   )
-
   return NextResponse.json({
     results: activeInstances.map((inst, i) => ({
       id: inst.id,

@@ -9,6 +9,7 @@ export async function send(title: string, message: string, config: PushoverConfi
     headers: { 'Content-Type': 'application/json' },
     body: JSON.stringify({ token: config.token, user: config.user, title, message }),
     signal: AbortSignal.timeout(10_000),
+    redirect: 'error',
   })
   if (!res.ok) throw new Error(`Pushover error: ${res.status}`)
 }

@@ -10,6 +10,7 @@ export async function send(title: string, message: string, config: TelegramConfi
     headers: { 'Content-Type': 'application/json' },
     body: JSON.stringify({ chat_id: config.chatId, text, parse_mode: 'Markdown' }),
     signal: AbortSignal.timeout(10_000),
+    redirect: 'error',
   })
   if (!res.ok) throw new Error(`Telegram error: ${res.status}`)
 }

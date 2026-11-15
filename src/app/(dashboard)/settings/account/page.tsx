@@ -2,6 +2,7 @@
 
 import { useState } from 'react'
 import { toast } from 'sonner'
+import PageHeader from '@/components/dashboard/PageHeader'
 
 export default function AccountPage() {
   const [current, setCurrent] = useState('')
@@ -28,10 +29,8 @@ export default function AccountPage() {
       })
       const data = await res.json()
       if (!res.ok) throw new Error(data.error ?? 'Failed')
-      toast.success('Password changed successfully')
-      setCurrent('')
-      setNext('')
-      setConfirm('')
+      // The change ends every session, this one included (R1-F1).
+      window.location.assign('/login?reason=password-changed')
     } catch (err) {
       toast.error(err instanceof Error ? err.message : 'Failed to change password')
     } finally {
@@ -40,16 +39,13 @@ export default function AccountPage() {
   }
 
   return (
-    <div className="space-y-6">
-      <div>
-        <h1 className="text-2xl font-bold gradient-text">Account</h1>
-        <p className="text-sm text-muted-foreground mt-0.5">Manage your account credentials</p>
-      </div>
+    <div className="space-y-6 max-w-3xl">
+      <PageHeader title="Account" description="Manage your account credentials" />
 
-      <div className="glass-card p-6 space-y-5 max-w-md">
+      <div className="surface p-6 space-y-5 max-w-md">
         <div>
           <h2 className="text-sm font-semibold">Change Password</h2>
-          <p className="text-xs text-muted-foreground mt-0.5">You will remain logged in after changing your password.</p>
+          <p className="text-xs text-muted-foreground mt-0.5">Changing your password signs you out everywhere, including here.</p>
         </div>
 
         <form onSubmit={handleSubmit} className="space-y-4">
@@ -60,7 +56,7 @@ export default function AccountPage() {
               value={current}
               onChange={(e) => setCurrent(e.target.value)}
               required
-              className="w-full px-3 py-2 rounded-lg bg-black/20 border border-border text-sm placeholder:text-muted-foreground/50 focus:outline-none focus:ring-1 focus:ring-blue-500/50"
+              className="w-full px-3 py-2 rounded-lg bg-transparent dark:bg-input/30 border border-border text-sm placeholder:text-muted-foreground/50 focus:outline-none focus:ring-1 focus:ring-ring/50"
               placeholder="••••••••"
             />
           </div>
@@ -73,7 +69,7 @@ export default function AccountPage() {
               onChange={(e) => setNext(e.target.value)}
               required
               minLength={8}
-              className="w-full px-3 py-2 rounded-lg bg-black/20 border border-border text-sm placeholder:text-muted-foreground/50 focus:outline-none focus:ring-1 focus:ring-blue-500/50"
+              className="w-full px-3 py-2 rounded-lg bg-transparent dark:bg-input/30 border border-border text-sm placeholder:text-muted-foreground/50 focus:outline-none focus:ring-1 focus:ring-ring/50"
               placeholder="Min. 8 characters"
             />
           </div>
@@ -85,7 +81,7 @@ export default function AccountPage() {
               value={confirm}
               onChange={(e) => setConfirm(e.target.value)}
               required
-              className="w-full px-3 py-2 rounded-lg bg-black/20 border border-border text-sm placeholder:text-muted-foreground/50 focus:outline-none focus:ring-1 focus:ring-blue-500/50"
+              className="w-full px-3 py-2 rounded-lg bg-transparent dark:bg-input/30 border border-border text-sm placeholder:text-muted-foreground/50 focus:outline-none focus:ring-1 focus:ring-ring/50"
               placeholder="••••••••"
             />
           </div>
@@ -93,7 +89,7 @@ export default function AccountPage() {
           <button
             type="submit"
             disabled={saving || !current || !next || !confirm}
-            className="w-full px-4 py-2 rounded-lg text-sm font-medium bg-gradient-to-r from-blue-600 to-blue-500 text-white hover:from-blue-500 hover:to-blue-400 disabled:opacity-50 disabled:cursor-not-allowed transition-all"
+            className="w-full px-4 py-2 rounded-lg text-sm font-medium bg-primary text-primary-foreground hover:bg-primary/90 disabled:opacity-50 disabled:cursor-not-allowed transition-colors"
           >
             {saving ? 'Saving…' : 'Change Password'}
           </button>

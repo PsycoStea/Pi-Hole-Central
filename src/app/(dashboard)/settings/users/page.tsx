@@ -5,6 +5,7 @@ import { useSession } from 'next-auth/react'
 import { toast } from 'sonner'
 import { Trash2, ShieldCheck, Eye } from 'lucide-react'
 import { cn } from '@/lib/utils'
+import PageHeader from '@/components/dashboard/PageHeader'
 
 interface UserRow {
   id: string
@@ -41,6 +42,10 @@ export default function UsersPage() {
 
   async function toggleRole(user: UserRow) {
     const newR = user.role === 'admin' ? 'viewer' : 'admin'
+    const msg = newR === 'admin'
+      ? `Make "${user.username}" an admin? Admins can change every setting, including Pi-hole blocking and other users.`
+      : `Make "${user.username}" a viewer? They will lose access to all settings.`
+    if (!window.confirm(msg)) return
     try {
       const res = await fetch(`/api/users/${user.id}`, {
         method: 'PATCH',
@@ -93,8 +98,8 @@ export default function UsersPage() {
   if (!isAdmin) {
     return (
       <div className="space-y-6">
-        <h1 className="text-2xl font-bold gradient-text">Users</h1>
-        <div className="glass-card p-8 text-center text-muted-foreground text-sm">
+        <PageHeader title="Users" />
+        <div className="surface p-8 text-center text-muted-foreground text-sm">
           You do not have permission to manage users.
         </div>
       </div>
@@ -103,17 +108,14 @@ export default function UsersPage() {
 
   return (
     <div className="space-y-6">
-      <div>
-        <h1 className="text-2xl font-bold gradient-text">Users</h1>
-        <p className="text-sm text-muted-foreground mt-0.5">Manage accounts and access levels</p>
-      </div>
+      <PageHeader title="Users" description="Manage accounts and access levels" />
 
       {/* User table */}
-      <div className="glass-card overflow-hidden">
+      <div className="surface overflow-x-auto">
         {loading ? (
           <div className="p-8 text-center text-muted-foreground text-sm">Loading…</div>
         ) : (
-          <table className="w-full text-sm">
+          <table className="w-full min-w-[32rem] text-sm">
             <thead>
               <tr className="border-b border-border">
                 <th className="text-left px-4 py-3 text-xs font-medium text-muted-foreground uppercase tracking-wider">Username</th>
@@ -135,7 +137,7 @@ export default function UsersPage() {
                         'inline-flex items-center gap-1.5 px-2.5 py-1 rounded-full text-xs font-medium border transition-colors cursor-pointer',
                         u.id === session?.user?.id && 'cursor-default opacity-60',
                         u.role === 'admin'
-                          ? 'bg-blue-500/15 text-blue-400 border-blue-500/25 hover:bg-blue-500/25'
+                          ? 'bg-primary/15 text-primary border-primary/25 hover:bg-primary/25'
                           : 'bg-muted text-muted-foreground border-border hover:bg-accent'
                       )}
                     >
@@ -153,7 +155,7 @@ export default function UsersPage() {
                       onClick={() => deleteUser(u)}
                       disabled={u.id === session?.user?.id}
                       title={u.id === session?.user?.id ? 'Cannot delete your own account' : 'Delete user'}
-                      className="p-1.5 rounded text-muted-foreground hover:text-red-400 hover:bg-red-500/10 disabled:opacity-30 disabled:cursor-not-allowed transition-colors"
+                      className="p-1.5 rounded text-muted-foreground hover:text-destructive hover:bg-destructive/10 disabled:opacity-30 disabled:cursor-not-allowed transition-colors"
                     >
                       <Trash2 className="h-3.5 w-3.5" />
                     </button>
@@ -166,7 +168,7 @@ export default function UsersPage() {
       </div>
 
       {/* Create user form */}
-      <div className="glass-card p-6 space-y-4 max-w-md">
+      <div className="surface p-6 space-y-4 max-w-md">
         <h2 className="text-sm font-semibold">Create User</h2>
         <form onSubmit={createUser} className="space-y-3">
           <input
@@ -175,7 +177,7 @@ export default function UsersPage() {
             onChange={(e) => setNewUsername(e.target.value)}
             placeholder="Username"
             required
-            className="w-full px-3 py-2 rounded-lg bg-black/20 border border-border text-sm placeholder:text-muted-foreground/50 focus:outline-none focus:ring-1 focus:ring-blue-500/50"
+            className="w-full px-3 py-2 rounded-lg bg-transparent dark:bg-input/30 border border-border text-sm placeholder:text-muted-foreground/50 focus:outline-none focus:ring-1 focus:ring-ring/50"
           />
           <input
             type="password"
@@ -184,7 +186,7 @@ export default function UsersPage() {
             placeholder="Password (min. 8 characters)"
             required
             minLength={8}
-            className="w-full px-3 py-2 rounded-lg bg-black/20 border border-border text-sm placeholder:text-muted-foreground/50 focus:outline-none focus:ring-1 focus:ring-blue-500/50"
+            className="w-full px-3 py-2 rounded-lg bg-transparent dark:bg-input/30 border border-border text-sm placeholder:text-muted-foreground/50 focus:outline-none focus:ring-1 focus:ring-ring/50"
           />
           <div className="flex gap-2">
             {(['viewer', 'admin'] as const).map((r) => (
@@ -195,8 +197,8 @@ export default function UsersPage() {
                 className={cn(
                   'flex-1 py-2 rounded-lg text-xs font-medium border transition-colors capitalize',
                   newRole === r
-                    ? 'bg-blue-500/20 border-blue-500/50 text-blue-400'
-                    : 'bg-black/20 border-border text-muted-foreground hover:text-foreground'
+                    ? 'bg-primary/20 border-primary/50 text-primary'
+                    : 'bg-muted/50 border-border text-muted-foreground hover:text-foreground'
                 )}
               >
                 {r}
@@ -206,7 +208,7 @@ export default function UsersPage() {
           <button
             type="submit"
             disabled={creating || !newUsername || !newPassword}
-            className="w-full px-4 py-2 rounded-lg text-sm font-medium bg-gradient-to-r from-blue-600 to-blue-500 text-white hover:from-blue-500 hover:to-blue-400 disabled:opacity-50 disabled:cursor-not-allowed transition-all"
+            className="w-full px-4 py-2 rounded-lg text-sm font-medium bg-primary text-primary-foreground hover:bg-primary/90 disabled:opacity-50 disabled:cursor-not-allowed transition-colors"
           >
             {creating ? 'Creating…' : 'Create User'}
           </button>

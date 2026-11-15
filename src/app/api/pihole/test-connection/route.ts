@@ -1,13 +1,20 @@
 import { NextResponse } from 'next/server'
-import { auth } from '@/lib/auth'
+import { requireAdmin } from '@/lib/auth-guard'
 import { testConnection } from '@/lib/pihole/client'
+import { isAllowedInstanceUrl } from '@/lib/pihole/validate'
 
 export async function POST(req: Request) {
-  const session = await auth()
-  if (!session) return NextResponse.json({ error: 'Unauthorized' }, { status: 401 })
+  const denied = await requireAdmin()
+  if (denied) return denied
   const { url, password } = await req.json()
   if (!url || !password) {
     return NextResponse.json({ error: 'url and password required' }, { status: 400 })
+  }
+  if (!isAllowedInstanceUrl(url)) {
+    return NextResponse.json(
+      { error: 'url must be an http(s) address on a private/loopback network' },
+      { status: 400 }
+    )
   }
   try {
     const summary = await testConnection(url, password)

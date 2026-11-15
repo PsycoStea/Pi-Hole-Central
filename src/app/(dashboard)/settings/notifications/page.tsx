@@ -21,6 +21,8 @@ import {
 } from '@/components/ui/select'
 import { Plus, Trash2, Send, Loader2 } from 'lucide-react'
 import { toast } from 'sonner'
+import { api, errorText } from '@/lib/client/api'
+import PageHeader from '@/components/dashboard/PageHeader'
 
 interface Channel {
   id: string
@@ -46,6 +48,7 @@ const PROVIDER_FIELDS: Record<string, { key: string; label: string; placeholder:
   email: [
     { key: 'host', label: 'SMTP Host', placeholder: 'smtp.example.com' },
     { key: 'port', label: 'Port', placeholder: '587' },
+    { key: 'tls', label: 'TLS: starttls (default, required) | implicit (port 465) | none (no login)', placeholder: 'starttls' },
     { key: 'user', label: 'Username', placeholder: 'user@example.com' },
     { key: 'pass', label: 'Password', placeholder: '••••••••', type: 'password' },
     { key: 'from', label: 'From', placeholder: 'pihole@example.com' },
@@ -65,16 +68,11 @@ function AddChannelDialog({ onSave, onClose }: { onSave: () => void; onClose: ()
     if (!label) return toast.error('Label is required')
     setSaving(true)
     try {
-      const res = await fetch('/api/notifications/channels', {
-        method: 'POST',
-        headers: { 'Content-Type': 'application/json' },
-        body: JSON.stringify({ type, label, config }),
-      })
-      if (!res.ok) throw new Error()
+      await api('/api/notifications/channels', { method: 'POST', json: { type, label, config } })
       toast.success('Notification channel added')
       onSave()
-    } catch {
-      toast.error('Failed to add channel')
+    } catch (err) {
+      toast.error(`Failed to add channel: ${errorText(err)}`)
     } finally {
       setSaving(false)
     }
@@ -85,10 +83,10 @@ function AddChannelDialog({ onSave, onClose }: { onSave: () => void; onClose: ()
       <div className="space-y-2">
         <Label>Provider</Label>
         <Select value={type} onValueChange={(v) => { setType(v ?? 'gotify'); setConfig({}) }}>
-          <SelectTrigger className="bg-white/5 border-border">
+          <SelectTrigger className="bg-foreground/5 border-border">
             <SelectValue />
           </SelectTrigger>
-          <SelectContent className="bg-zinc-900 border-border">
+          <SelectContent >
             {Object.keys(PROVIDER_FIELDS).map((p) => (
               <SelectItem key={p} value={p} className="capitalize">{p}</SelectItem>
             ))}
@@ -101,7 +99,7 @@ function AddChannelDialog({ onSave, onClose }: { onSave: () => void; onClose: ()
           value={label}
           onChange={(e) => setLabel(e.target.value)}
           placeholder="My Gotify Server"
-          className="bg-white/5 border-border"
+          className="bg-foreground/5 border-border"
         />
       </div>
       {fields.map((f) => (
@@ -112,14 +110,14 @@ function AddChannelDialog({ onSave, onClose }: { onSave: () => void; onClose: ()
             value={config[f.key] ?? ''}
             onChange={(e) => setConfig((c) => ({ ...c, [f.key]: e.target.value }))}
             placeholder={f.placeholder}
-            className="bg-white/5 border-border"
+            className="bg-foreground/5 border-border"
           />
         </div>
       ))}
       <div className="flex gap-2 pt-2">
         <div className="flex-1" />
         <Button variant="ghost" size="sm" onClick={onClose} className="text-muted-foreground">Cancel</Button>
-        <Button size="sm" onClick={handleSave} disabled={saving} className="bg-blue-600 hover:bg-blue-700">
+        <Button size="sm" onClick={handleSave} disabled={saving}>
           {saving && <Loader2 className="h-3.5 w-3.5 animate-spin mr-1" />}
           Add Channel
         </Button>
@@ -141,18 +139,22 @@ export default function NotificationsPage() {
   useEffect(() => { fetchChannels() }, [fetchChannels])
 
   async function toggleChannel(id: string, enabled: boolean) {
-    await fetch(`/api/notifications/channels/${id}`, {
-      method: 'PUT',
-      headers: { 'Content-Type': 'application/json' },
-      body: JSON.stringify({ enabled }),
-    })
+    try {
+      await api(`/api/notifications/channels/${id}`, { method: 'PUT', json: { enabled } })
+    } catch (err) {
+      toast.error(errorText(err, 'Could not update channel'))
+    }
     fetchChannels()
   }
 
   async function deleteChannel(id: string) {
     if (!confirm('Delete this notification channel?')) return
-    await fetch(`/api/notifications/channels/${id}`, { method: 'DELETE' })
-    toast.success('Channel removed')
+    try {
+      await api(`/api/notifications/channels/${id}`, { method: 'DELETE' })
+      toast.success('Channel removed')
+    } catch (err) {
+      toast.error(errorText(err, 'Delete failed'))
+    }
     fetchChannels()
   }
 
@@ -160,55 +162,58 @@ export default function NotificationsPage() {
     setTestingId(id)
     try {
       const res = await fetch(`/api/notifications/channels/${id}/test`, { method: 'POST' })
-      const data = await res.json()
-      if (data.ok) toast.success('Test notification sent!')
-      else toast.error(`Test failed: ${data.error}`)
-    } catch {
-      toast.error('Test failed')
+      const data = await res.json().catch(() => ({}))
+      if (res.ok && data.ok) toast.success('Test notification sent!')
+      else toast.error(`Test failed: ${data.error ?? `HTTP ${res.status}`}`)
+    } catch (err) {
+      toast.error(`Test failed: ${errorText(err)}`)
     } finally {
       setTestingId(null)
     }
   }
 
   const typeColors: Record<string, string> = {
-    gotify: 'text-blue-400 bg-blue-500/10 border-blue-500/20',
-    pushover: 'text-orange-400 bg-orange-500/10 border-orange-500/20',
-    telegram: 'text-sky-400 bg-sky-500/10 border-sky-500/20',
-    email: 'text-purple-400 bg-purple-500/10 border-purple-500/20',
+    gotify: 'text-primary bg-primary/10 border-primary/20',
+    pushover: 'text-warning bg-warning/10 border-warning/20',
+    telegram: 'text-primary bg-primary/10 border-primary/20',
+    email: 'text-primary bg-primary/10 border-primary/20',
   }
 
   return (
-    <div className="space-y-6 max-w-2xl">
-      <div className="flex items-center justify-between">
-        <div>
-          <h1 className="text-2xl font-bold">Notifications</h1>
-          <p className="text-sm text-muted-foreground mt-0.5">Configure where alerts are delivered</p>
-        </div>
-        <Button size="sm" className="bg-blue-600 hover:bg-blue-700 gap-1.5" onClick={() => setAddOpen(true)}>
+    <div className="space-y-6 max-w-3xl">
+      <PageHeader
+        title="Notifications"
+        description="Configure where alerts are delivered"
+        actions={
+          <>
+            <Button className="gap-1.5" onClick={() => setAddOpen(true)}>
           <Plus className="h-4 w-4" />
           Add Channel
         </Button>
-      </div>
+          </>
+        }
+      />
 
       <div className="space-y-3">
         {channels.length === 0 && (
-          <div className="glass-card p-8 text-center text-muted-foreground text-sm">
+          <div className="surface p-8 text-center text-muted-foreground text-sm">
             No notification channels configured
           </div>
         )}
         {channels.map((ch) => (
-          <div key={ch.id} className="glass-card p-4 flex items-center gap-3">
+          <div key={ch.id} className="surface p-4 flex items-center gap-3">
             <Badge className={`text-xs capitalize ${typeColors[ch.type] ?? ''}`}>{ch.type}</Badge>
             <span className="flex-1 text-sm font-medium">{ch.label}</span>
             <Switch
               checked={ch.enabled}
               onCheckedChange={(v) => toggleChannel(ch.id, v)}
               className="scale-90"
+              aria-label={`Channel enabled: ${ch.label}`}
             />
             <Button
               variant="ghost"
               size="icon"
-              className="h-8 w-8 text-muted-foreground hover:text-green-400"
+              className="h-8 w-8 text-muted-foreground hover:text-success"
               onClick={() => sendTest(ch.id)}
               disabled={testingId === ch.id}
               title="Send test notification"
@@ -221,8 +226,9 @@ export default function NotificationsPage() {
             <Button
               variant="ghost"
               size="icon"
-              className="h-8 w-8 text-muted-foreground hover:text-red-400"
+              className="h-8 w-8 text-muted-foreground hover:text-destructive"
               onClick={() => deleteChannel(ch.id)}
+              aria-label={`Delete channel ${ch.label}`}
             >
               <Trash2 className="h-3.5 w-3.5" />
             </Button>
@@ -231,7 +237,7 @@ export default function NotificationsPage() {
       </div>
 
       <Dialog open={addOpen} onOpenChange={setAddOpen}>
-        <DialogContent className="bg-zinc-900 border-border max-h-[90vh] overflow-y-auto">
+        <DialogContent className="max-h-[90vh] overflow-y-auto">
           <DialogHeader>
             <DialogTitle>Add Notification Channel</DialogTitle>
           </DialogHeader>

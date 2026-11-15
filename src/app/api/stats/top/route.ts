@@ -27,14 +27,21 @@ export async function GET() {
   if (activeInstances.length > 0) {
     const instanceIds = activeInstances.map(i => i.id)
 
-    // Single query: latest snapshot per instance via subquery join (replaces N+1 loop)
+    // Latest snapshot *with top data* per instance. Health/offline polls write
+    // empty top_domains_json; without the status filter the newest (empty) row
+    // shadows the real online snapshot and the Top tables render blank.
     const subquery = db
       .select({
         instanceId: statsSnapshots.instanceId,
         maxTs: max(statsSnapshots.timestamp).as('max_ts'),
       })
       .from(statsSnapshots)
-      .where(inArray(statsSnapshots.instanceId, instanceIds))
+      .where(
+        and(
+          inArray(statsSnapshots.instanceId, instanceIds),
+          eq(statsSnapshots.status, 'online')
+        )
+      )
       .groupBy(statsSnapshots.instanceId)
       .as('latest')
 

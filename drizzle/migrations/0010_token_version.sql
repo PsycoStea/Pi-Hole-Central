@@ -1,0 +1,14 @@
+-- Session revocation (audit R1-F1).
+--
+-- Sessions are stateless JWTs that live 30 days, so a copied cookie used to keep
+-- working after the owner changed their password or signed out. Every token now
+-- carries the user's token_version from sign-in, and every server-side session
+-- read compares it with this column. Bumping the column ends every session the
+-- user has: password change, admin password reset, demotion to viewer, sign-out.
+--
+-- Existing tokens carry no version and are refused, so deploying this signs
+-- everyone out once.
+--
+-- Additive only: code from before this migration ignores the column, so a
+-- rollback is a revert + redeploy with no DB restore.
+ALTER TABLE `users` ADD `token_version` integer DEFAULT 0 NOT NULL;

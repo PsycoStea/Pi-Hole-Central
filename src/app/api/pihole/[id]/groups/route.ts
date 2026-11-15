@@ -1,3 +1,4 @@
+import { enabledInstance } from '@/lib/pihole/instance-guard'
 import { auth } from '@/lib/auth'
 import * as piholeClient from '@/lib/pihole/client'
 import { NextResponse } from 'next/server'
@@ -12,6 +13,9 @@ export async function GET(
   if (!session) return NextResponse.json({ error: 'Unauthorized' }, { status: 401 })
 
   const { id } = await params
+  // R2-NV2: a disabled node gets no calls, not even reads.
+  const guard = await enabledInstance(id)
+  if (guard.denied) return guard.denied
 
   try {
     const groups = await piholeClient.getGroups(id)

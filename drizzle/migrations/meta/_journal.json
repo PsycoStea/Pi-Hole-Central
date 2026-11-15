@@ -29,6 +29,62 @@
       "when": 1778526000000,
       "tag": "0003_stats_index",
       "breakpoints": true
+    },
+    {
+      "idx": 4,
+      "version": "6",
+      "when": 1778640000000,
+      "tag": "0004_ssh_recovery",
+      "breakpoints": true
+    },
+    {
+      "idx": 5,
+      "version": "6",
+      "when": 1778700000000,
+      "tag": "0005_notifications",
+      "breakpoints": true
+    },
+    {
+      "idx": 6,
+      "version": "6",
+      "when": 1778760000000,
+      "tag": "0006_dns_tools",
+      "breakpoints": true
+    },
+    {
+      "idx": 7,
+      "version": "6",
+      "when": 1778820000000,
+      "tag": "0007_backup_history",
+      "breakpoints": true
+    },
+    {
+      "idx": 8,
+      "version": "6",
+      "when": 1778880000000,
+      "tag": "0008_audit_log",
+      "breakpoints": true
+    },
+    {
+      "idx": 9,
+      "version": "6",
+      "when": 1778880060000,
+      "tag": "0009_sticky_conditions",
+      "breakpoints": true
+    },
+    {
+      "idx": 10,
+      "version": "6",
+      "when": 1778880120000,
+      "tag": "0010_token_version",
+      "breakpoints": true
+    },
+    {
+      "idx": 11,
+      "version": "6",
+      "when": 1778880180000,
+      "tag": "0011_node_ops",
+      "breakpoints": true
     }
   ]
 }

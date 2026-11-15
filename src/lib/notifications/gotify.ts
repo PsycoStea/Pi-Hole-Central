@@ -6,9 +6,12 @@ export interface GotifyConfig {
 
 export async function send(title: string, message: string, config: GotifyConfig): Promise<void> {
   const url = config.url.replace(/\/$/, '')
-  const res = await fetch(`${url}/message?token=${config.token}`, {
+  // Token in the X-Gotify-Key header, not the query string, so it stays out
+  // of proxy/access logs and error messages that echo the URL.
+  const res = await fetch(`${url}/message`, {
     method: 'POST',
-    headers: { 'Content-Type': 'application/json' },
+    headers: { 'Content-Type': 'application/json', 'X-Gotify-Key': config.token },
+    redirect: 'error',
     body: JSON.stringify({ title, message, priority: config.priority ?? 5 }),
     signal: AbortSignal.timeout(10_000),
   })

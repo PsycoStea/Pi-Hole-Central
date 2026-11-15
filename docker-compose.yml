@@ -6,8 +6,18 @@ services:
       - "3100:3000"
     volumes:
       - ./data:/app/data
+      - ${SSH_KEY_PATH:-/dev/null}:/app/ssh/id_rsa:ro
+      # Private CA that signs the Pi-hole nodes' https certificates (FIX-PLAN P4).
+      # Set PIHOLE_CA_PATH in .env to the CA *certificate* (never the key), kept
+      # outside this checkout and data/. Unset = /dev/null: http nodes work,
+      # https nodes are refused. A missing source path makes Docker create a
+      # directory in its place, so point it at a file that exists.
+      - ${PIHOLE_CA_PATH:-/dev/null}:/app/ca/pihole-ca.pem:ro
     environment:
       DATABASE_URL: file:/app/data/pihole-central.db
       NEXTAUTH_SECRET: ${NEXTAUTH_SECRET}
       NEXTAUTH_URL: ${NEXTAUTH_URL:-http://localhost:3100}
       ENCRYPTION_KEY: ${ENCRYPTION_KEY}
+      SSH_KEY_PATH: /app/ssh/id_rsa
+      SSH_KEY_PASSPHRASE: ${SSH_KEY_PASSPHRASE:-}
+      PIHOLE_CA_FILE: /app/ca/pihole-ca.pem

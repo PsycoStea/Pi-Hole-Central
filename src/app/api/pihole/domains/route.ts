@@ -1,3 +1,5 @@
+import { isList } from '@/lib/pihole/validate'
+import { errMsg } from '@/lib/errors'
 import { auth } from '@/lib/auth'
 import { db } from '@/lib/db'
 import { instances } from '@/lib/db/schema'
@@ -14,7 +16,8 @@ export async function GET(req: Request) {
   const session = await auth()
   if (!session) return NextResponse.json({ error: 'Unauthorized' }, { status: 401 })
 
-  const list = (new URL(req.url).searchParams.get('list') ?? 'allow') as 'allow' | 'deny'
+  const list = new URL(req.url).searchParams.get('list') ?? 'allow'
+  if (!isList(list)) return NextResponse.json({ error: 'list must be allow|deny' }, { status: 400 })
 
   const activeInstances = await db.query.instances.findMany({
     where: eq(instances.enabled, true),
@@ -28,12 +31,16 @@ export async function GET(req: Request) {
     )
   )
 
+  // Report nodes that didn't answer, as /api/pihole/lists does. Dropping them
+  // silently made a half-empty list look complete.
   const merged: TaggedDomain[] = []
-  for (const result of results) {
+  const failures: { name: string; error: string }[] = []
+  results.forEach((result, i) => {
     if (result.status === 'fulfilled') merged.push(...result.value)
-  }
+    else failures.push({ name: activeInstances[i].name, error: errMsg(result.reason) })
+  })
 
   merged.sort((a, b) => a.domain.localeCompare(b.domain))
 
-  return NextResponse.json({ domains: merged })
+  return NextResponse.json({ domains: merged, ...(failures.length && { failures }) })
 }

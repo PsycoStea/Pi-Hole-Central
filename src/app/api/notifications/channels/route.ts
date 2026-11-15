@@ -5,6 +5,8 @@ import { db } from '@/lib/db'
 import { notificationChannels } from '@/lib/db/schema'
 import { encrypt } from '@/lib/crypto'
 import { randomUUID } from 'crypto'
+import { logAudit } from '@/lib/audit'
+import { describeChannelConfig } from '@/lib/notifications/describe'
 
 export async function GET() {
   const session = await auth()
@@ -28,6 +30,7 @@ export async function POST(req: Request) {
     enabled: true,
   }
   await db.insert(notificationChannels).values(channel)
+  await logAudit('channel.add', channel.id, `${type} "${label}" ${typeof config === 'object' ? describeChannelConfig(config) : ''}`.trim())
   const { configJson: _, ...safe } = channel
   return NextResponse.json(safe, { status: 201 })
 }
